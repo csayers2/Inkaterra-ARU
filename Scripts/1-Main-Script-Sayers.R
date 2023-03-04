@@ -55,28 +55,33 @@ while(window.start < max.time) {
   cat(paste("done with iteration", window.start, "\n"))
 }
 
+write.csv(SR.Annotations, "Outputs/SR.Annotations")
+
 # calculating species richness for each time window
 SR.Window <- SR.Annotations %>% 
   pivot_longer(`60`:`3600`, names_to = "Time.Window", values_to = "Presence") %>%
-  # excluding individuals that were not identified with 100% confidence
-  filter(exclusion.code <= 3) %>% 
+  ## excluding individuals that were not identified with 100% confidence
+  filter(exclusion.code < 3, background != 1) %>% 
   # calculating species richness per time window per day per site
   filter(Presence == 1) %>%
   group_by(Site, Day, Time.Window) %>% 
-  summarize(SR = length(unique(Species)))
+  summarize(SR = length(unique(Species)), exclusion.code = exclusion.code)
 
 # zero-filling data frame to represent absences
 SR.filler <- SR.Annotations %>% 
   pivot_longer(`60`:`3600`, names_to = "Time.Window", values_to = "Presence") %>%
   # excluding individuals that were not identified with 100% confidence
-  filter(exclusion.code <= 3) %>% 
+  filter(exclusion.code < 3, background != 1) %>% 
   select(Site, Day, Time.Window) %>% 
   distinct()
 
 # putting everything together
 SR.Window.60 <- left_join(SR.filler, SR.Window, by = c("Site", "Day", "Time.Window")) %>% 
   mutate(SR = replace_na(SR, 0)) %>% 
-  left_join(SiteData, by = c("Site", "Day"))
+  left_join(SiteData, by = c("Site", "Day")) %>% 
+  mutate(Time.Window = as.numeric(Time.Window))
+
+write.csv(SR.Window.60, "Outputs/SR.Window.60")
 
 # DATA VISUALIZATION ------------------------------------------------------
 library(ggpubr)
@@ -97,9 +102,15 @@ gghistogram(SR.Window.60$SR, xlab = "Species Richness")
 ggqqplot(SR.Window.60$SR, ylab = "Species Richness") # tails stray from normal
 shapiro.test(SR.Window.60$SR) # W = 0.97989, p-value = 4.43e-11, not normal
 
+library(ggplot2)
+ggplot(data = SR.Window.60) +
+  geom_point(mapping = aes(x = Time.Window, y = SR, color = Site)) +
+  geom_smooth(mapping = aes(x = Time.Window, y = SR, color = Site)) + 
+  facet_grid(Day ~ Hab2)
+
 # SPECIES RICHNESS MODEL -------------------------------------------------------
 
-SRmodel.60 <- glmmTMB(SR ~ Time.Window + Day + Hab2 + Edge.Distance + (1 | Site),
+SRmodel.60 <- glmmTMB(SR ~ poly(Time.Window, 2)*Day + Hab2 + Edge.Distance + (1 | Site),
                         data = SR.Window.60, family = "poisson", REML = F)
 
 SRmodel.60 <- glmmTMB(SR ~ Time.Window*Day + Hab2 + Edge.Distance + (1 | Site),
@@ -165,15 +176,16 @@ performance::r2(topSRmodel)
 car::Anova(topSRmodel, type = 3)
 
 # computing post-hoc comparisons to determine significant differences among the modeled means
-# need to switch model to be as.factor(Time.Window) first before performing this comparison
-emmeans(topSRmodel, "Time.Window", type = "response") %>% 
-  cld(Letter = "abcdefg")
 
 emmeans(topSRmodel, "Day", type = "response") %>% 
   cld(Letter = "abcdefg")
 
 emmeans(topSRmodel, "Hab2", type = "response") %>% 
   cld(Letter = "abcdefg")
+
+library(ggeffects)
+plot(ggpredict(SRmodel.60, terms = c("Time.Window [all]", "Day", "Hab2"),
+          type = "random", plot = T))
 
 # VOCAL PREVALENCE --------------------------------------------------------
 
@@ -218,13 +230,15 @@ while(window.start < max.time) {
   cat(paste("done with iteration", window.start, "\n"))
 }
 
+write.csv(VP.Annotations, "Outputs/VP.Annotations")
+
 VP.Window <- VP.Annotations %>% 
   pivot_longer(`10`:`3600`, names_to = "Time.Window", values_to = "VP") %>%
   mutate(Time.Window = as.numeric(Time.Window)) %>%
   # excluding individuals that were not identified with 100% confidence
-  filter(exclusion.code <= 3) %>%
+  filter(exclusion.code < 9, background != 1) %>%
   group_by(Site, Day, Species, Time.Window) %>%
-  summarize(VP = max(VP)) %>% 
+  summarize(VP = max(VP)) 
   ## filtering by present species only to make the df easier to loop over
   #filter(VP == 1)
 
@@ -268,7 +282,7 @@ community <- VP.Annotations %>%
   pivot_longer(`10`:`3600`, names_to = "Time.Window", values_to = "VP") %>%
   mutate(Time.Window = as.numeric(Time.Window)) %>%
   # excluding individuals that were not identified with 100% confidence
-  filter(exclusion.code <= 3) %>%
+  filter(exclusion.code < 9, background != 1) %>%
   select(Species, Time.Window) %>%
   distinct()
 
@@ -281,12 +295,16 @@ VP.Window.10 <- left_join(VP.filler, VP.Window, by = c("Site", "Day", "Species",
   mutate(Time.Window = as.numeric(Time.Window))
  #%>% spread(Time.Window, VP)
 
+write.csv(VP.Window.10, "Outputs/VP.Window.10")
+
 # creating vocal prevalence df
 VP.Window.60 <- VP.Window.10 %>% 
   group_by(Site, Day, Species, Time.Minute) %>% 
   summarize(VP = sum(VP)) %>%
   left_join(SiteData, by = c("Site", "Day")) %>% 
   rename(Time.Window = Time.Minute)
+
+write.csv(VP.Window.60, "Outputs/VP.Window.60")
 
 # DATA VISUALIZATION ------------------------------------------------------
 library(ggpubr)
@@ -313,6 +331,23 @@ ggdensity(VP.Window.60$VP, xlab = "Vocal Prevalence") # looks great
 gghistogram(VP.Window.60$VP, xlab = "Vocal Prevalence")
 ggqqplot(VP.Window.60$VP, ylab = "Vocal Prevalence") # tails stray from normal
 shapiro.test(VP.Window.60$VP) # W = 0.97989, p-value = 4.43e-11, not normal
+
+library(ggplot2)
+ggplot(data = VP.Window.60) +
+  geom_point(mapping = aes(x = Time.Window, y = VP, color = Species)) +
+  #geom_smooth(mapping = aes(x = Time.Window, y = VP, color = Site)) + 
+  facet_grid(Day ~ Hab2)
+
+
+TE.Window <- VP.Window.10 %>% 
+  group_by(Site, Day) %>% 
+  mutate(TE = sum(VP))
+
+ggplot(data = TE.Window) +
+  geom_point(mapping = aes(x = Day, y = TE)) +
+  #geom_smooth(mapping = aes(x = Time.Window, y = VP, color = Site)) + 
+  facet_grid(Site ~ Hab2)
+
 
 # VOCAL PREVALENCE MODEL -------------------------------------------------------
 
