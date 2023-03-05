@@ -212,16 +212,28 @@ VP.Window.60 <- VP.Window.10 %>%
   group_by(Site, Day, Species, Time.Minute) %>% 
   summarize(VP = sum(VP)) %>%
   left_join(SiteData, by = c("Site", "Day")) %>% 
-  rename(Time.Window = Time.Minute) %>% 
+  rename(Time.Window = Time.Minute) %>%
+  # calculating vocal absence for binomial model
   mutate(VA = 6 - VP)
 
 write.csv(VP.Window.60, "Outputs/VP.Window.60")
 
 # total encounters per species for each site-day = sum of VP across 10 s windows
-TE.Window.10.spp <- VP.Window.10 %>% 
-  group_by(Site, Day, Species) %>% 
-  summarize(TE = sum(VP)) %>% 
-  left_join(SiteData, by = c("Site", "Day")) %>%
-  mutate(TE.inv = 3600 - TE)
+#TE.Window.10.spp <- VP.Window.10 %>% 
+#  group_by(Site, Day, Species) %>% 
+#  summarize(TE = sum(VP)) %>% 
+#  left_join(SiteData, by = c("Site", "Day")) %>%
+#  mutate(TE.inv = 3600 - TE)
+#
+#write.csv(TE.Window.10.spp, "Outputs/TE.Window.10.spp")
 
-write.csv(TE.Window.10.spp, "Outputs/TE.Window.10.spp")
+
+# creating TOTAL Vocal Prevalence (TVP) data frame that sums 
+# every 10-s detection across species for each 60-s window
+TVP.Window.60 <- VP.Window.10 %>%
+  group_by(Site, Day, Time.Minute) %>% 
+  summarize(TVP = sum(VP)) %>% 
+  rename(Time.Window = Time.Minute) %>%
+  left_join(SiteData, by = c("Site", "Day"))
+
+write.csv(TVP.Window.60, "Outputs/TVP.Window.60")

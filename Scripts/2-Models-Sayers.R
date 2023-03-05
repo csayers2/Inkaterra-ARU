@@ -33,31 +33,16 @@ ggplot(data = SR.Window.60) +
 
 # SPECIES RICHNESS MODEL -------------------------------------------------------
 
-SRmodel.60.1 <- glmmTMB(SR ~ Time.Window + Day + Site,
+SRmodel.60.1 <- glmmTMB(SR ~ poly(Time.Window, 2)*Day + Hab2 + (1 | Site),
+                        data = SR.Window.60, family = "poisson", REML = F)
+
+SRmodel.60.2 <- glmmTMB(SR ~ poly(Time.Window, 2)*Day*Site,
                       data = SR.Window.60, family = "poisson", REML = F)
 
-SRmodel.60.2 <- glmmTMB(SR ~ Time.Window*Day + Site,
-                        data = SR.Window.60, family = "poisson", REML = F)
-
-SRmodel.60.3 <- glmmTMB(SR ~ poly(Time.Window, 2) + Day + Site,
-                        data = SR.Window.60, family = "poisson", REML = F)
-
-SRmodel.60.4 <- glmmTMB(SR ~ poly(Time.Window, 2)*Day + Site,
-                        data = SR.Window.60, family = "poisson", REML = F)
-
-SRmodel.60.5 <- glmmTMB(SR ~ Time.Window + Day + Hab2 + (1 | Site),
-                      data = SR.Window.60, family = "poisson", REML = F)
-
-SRmodel.60.6 <- glmmTMB(SR ~ poly(Time.Window, 2) + Day + Hab2 + (1 | Site),
-                      data = SR.Window.60, family = "poisson", REML = F)
-
-SRmodel.60 <- glmmTMB(SR ~ poly(Time.Window, 2)*Day + Hab2 + (1 | Site),
-                        data = SR.Window.60, family = "poisson", REML = F)
-
-AIC(SRmodel.60.1, SRmodel.60.2, SRmodel.60.3, SRmodel.60.4, SRmodel.60.5, SRmodel.60.6, SRmodel.60)
+AIC(SRmodel.60.1, SRmodel.60.2)
 
 performance::r2(SRmodel.60)
-car::Anova(SRmodel.60.4, type = 3)
+car::Anova(SRmodel.60, type = 3)
 
 summary(SRmodel.60)
 as.data.frame(confint(SRmodel.60)) %>% 
@@ -130,11 +115,134 @@ plot(ggpredict(SRmodel.60, terms = c("Time.Window [all]", "Day", "Hab2"),
 
 
 
-# VOCAL PREVALENCE --------------------------------------------------------
+# TOTAL VOCAL PREVALENCE --------------------------------------------------------
+
+TVP.Window.60 <- read.csv("Outputs/TVP.Window.60")
+
+# OUTLIERS & NORMALITY OF RESPONSE VARIABLES -----------------------------------
+# This distribution is to be expected when dealing with count data/ many zero counts
+ggdensity(TVP.Window.60$TVP, xlab = "Total Vocal Prevalence")
+gghistogram(TVP.Window.60$TVP, xlab = "Total Vocal Prevalence")
+ggqqplot(TVP.Window.60$TVP, ylab = "Total Vocal Prevalence")
+shapiro.test(TVP.Window.60$TVP) # W = 0.98492, p-value = 3.958e-09, not normal
+
+library(ggplot2)
+ggplot(data = TVP.Window.60) +
+  geom_point(mapping = aes(x = Time.Window, y = TVP, color = Site)) +
+  geom_smooth(mapping = aes(x = Time.Window, y = TVP)) + 
+  facet_grid(~ Day)
+
+# TOTAL VOCAL PREVALENCE MODEL -------------------------------------------------------
+
+TVPmodel.60 <- glmmTMB(TVP ~ poly(Time.Window, 2)*Day + Hab2 + (1 | Site),
+                      data = TVP.Window.60, family = "poisson", REML = F)
+
+TVPmodel.60 <- glmmTMB(TVP ~ poly(Time.Window, 2)*Day*Site,
+                       data = TVP.Window.60, family = "poisson", REML = F)
+
+TVPmodel.60 <- glmmTMB(TVP ~ poly(Time.Window, 2)*Day + Site,
+                       data = TVP.Window.60, family = "poisson", REML = F)
+
+summary(TVPmodel.60)
+as.data.frame(confint(TVPmodel.60)) %>% 
+  mutate(Estimate = exp(Estimate), `2.5 %` = exp(`2.5 %`), `97.5 %` = exp(`97.5 %`))
+performance::r2(TVPmodel.60)
+car::Anova(TVPmodel.60, type = 3)
+
+
+# CHECKING MODEL ASSUMPTIONS -------------------------------------
+# Checking for homogeneity of variance & normality of residuals
+mean(residuals(TVPmodel.60)) # VERY close to 0
+
+simulateResiduals(TVPmodel.60, plot = T, refit = F, use.u = T)
+runs.test(residuals(TVPmodel.60)) # W = 0.99464, p-value = 0.6516, normal!
+# residual plots look okay
+
+# Checking for autocorrelation/independence
+acf(TVP.Window.60$TVP) # raw data is autocorrelated
+acf(residuals(TVPmodel.60)) # random effects variable corrects for this
+runs.test(residuals(TVPmodel.60)) # we have autocorrelated data
+
+library(DataCombine)
+TVP.Window.60.lag <- data.frame(TVP.Window.60, resid.mod = residuals(TVPmodel.60)) %>% 
+  slide(Var = "resid.mod", NewVar = "lag1", slideBy = -1) %>% 
+  na.omit()
+
+TVPmodel.60.lag <- glmmTMB(TVP ~ poly(Time.Window, 2)*Day + Hab2 + lag1 + (1 | Site),
+                   data = TVP.Window.60.lag, family = "poisson", REML = F)
+
+acf(TVP.Window.60.lag$TVP) # raw data is autocorrelated
+acf(residuals(TVPmodel.60.lag)) # random effects variable corrects for this
+runs.test(residuals(TVPmodel.60.lag)) # we still have autocorrelated data
+
+# Checking for homogeneity of variance & normality of residuals
+mean(residuals(TVPmodel.60.lag)) # VERY close to 0
+
+simulateResiduals(TVPmodel.60.lag, plot = T, refit = F, use.u = T)
+runs.test(residuals(TVPmodel.60.lag)) # W = 0.99464, p-value = 0.6516, normal!
+# residual plots look okay
+
+
+# MODEL SELECTION ---------------------------------------------------------
+TVPmodel.60 <- glmmTMB(TVP ~ poly(Time.Window, 2)*Day + Hab2 + (1 | Site),
+                       data = TVP.Window.60, family = "poisson", REML = F)
+
+options(na.action = "na.fail")
+# computes marginal and conditional R^2
+d.out <- MuMIn::dredge(TVPmodel.60, extra = list("Rsq" = function(x){performance::r2(x)}))
+View(d.out)
+options(na.action = "na.omit")
+write.csv(d.out, "Outputs/tvp-model-selection.csv")
+
+# 1st place model by a long-shot (R2 = 0.87, wi = 73%)
+topTVPmodel.60 <- glmmTMB(TVP ~ poly(Time.Window, 2)*Day + (1 | Site),
+                      data = TVP.Window.60, family = "poisson", REML = F)
+
+summary(topTVPmodel.60)
+as.data.frame(confint(topTVPmodel.60)) %>% 
+  mutate(Estimate = exp(Estimate), `2.5 %` = exp(`2.5 %`), `97.5 %` = exp(`97.5 %`))
+performance::r2(topTVPmodel.60)
+car::Anova(topTVPmodel.60, type = 3)
+
+# computing post-hoc comparisons to determine significant differences among the modeled means
+# need to switch model to be as.factor(Time.Window) first before performing this comparison
+emmeans(topTVPmodel.60, "Day", type = "response") %>% 
+  cld(Letter = "abcdefg")
+
+#emmeans(topTVPmodel.60, "Site", type = "response") %>% 
+#  cld(Letter = "abcdefg")
+
+# a cool visualization of the predicted means and variances
+library(ggeffects)
+plot(ggpredict(topTVPmodel.60, terms = c("Time.Window [all]", "Day"),
+               type = "random", plot = T))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# SPECIES-SPECIFIC VOCAL PREVALENCE --------------------------------------------------------
 
 VP.Window.10 <- read.csv("Outputs/VP.Window.10")
 VP.Window.60 <- read.csv("Outputs/VP.Window.60")
-TE.Window.10.spp <- read.csv("Outputs/TE.Window.10.spp")
+#TE.Window.10.spp <- read.csv("Outputs/TE.Window.10.spp")
 
 # OUTLIERS & NORMALITY OF RESPONSE VARIABLES -----------------------------------
 # This distribution is to be expected when dealing with count data/ many zero counts
@@ -163,7 +271,7 @@ ggplot(data = TE.Window.10.spp) +
   #geom_smooth(mapping = aes(x = Time.Window, y = VP, color = Site)) + 
   facet_grid(~ Hab2)
 
-# VOCAL PREVALENCE MODEL -------------------------------------------------------
+# SPECIES-SPECIFIC VOCAL PREVALENCE MODEL -------------------------------------------------------
 
 #VPmodel.10 <- glmmTMB(VP ~ Time.Window + Day + Hab2 + Edge.Distance +
 #                        (1 | Site) + (1 | Species),
