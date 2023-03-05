@@ -27,9 +27,9 @@ shapiro.test(SR.Window.60$SR) # W = 0.97624, p-value = 2.612e-12, not normal
 
 library(ggplot2)
 ggplot(data = SR.Window.60) +
-  geom_point(mapping = aes(x = Time.Window, y = SR, color = Site)) +
-  geom_smooth(mapping = aes(x = Time.Window, y = SR, color = Site)) + 
-  facet_grid(Day ~ Hab2)
+  geom_point(mapping = aes(x = Time.Window, y = SR, color = Day)) +
+  geom_smooth(mapping = aes(x = Time.Window, y = SR, color = Day)) 
+  #facet_grid(Day ~ Hab2)
 
 # SPECIES RICHNESS MODEL -------------------------------------------------------
 
