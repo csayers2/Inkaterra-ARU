@@ -4,6 +4,7 @@
 
 # script designed for data visualizations and model fitting
 
+library(ggplot2)
 library(ggpubr)
 library(MuMIn)
 library(glmmTMB)
@@ -17,7 +18,9 @@ library(multcomp)
 # SPECIES RICHNESS --------------------------------------------------------
 
 SR.Total <- read.csv("Outputs/SR.Total")
-SR.Window.60 <- read.csv("Outputs/SR.Window.60")
+SR.Window.60 <- read.csv("Outputs/SR.Window.60") %>% 
+  mutate(Minute = Time.Window/60,
+         Time.Window = as.factor(Time.Window)) 
 
 # OUTLIERS & NORMALITY OF RESPONSE VARIABLES -----------------------------------
 ggdensity(SR.Window.60$SR, xlab = "Species Richness")
@@ -25,24 +28,15 @@ gghistogram(SR.Window.60$SR, xlab = "Species Richness")
 ggqqplot(SR.Window.60$SR, ylab = "Species Richness")
 shapiro.test(SR.Window.60$SR) # W = 0.97624, p-value = 2.612e-12, not normal
 
-library(ggplot2)
 ggplot(data = SR.Window.60) +
-  geom_point(mapping = aes(x = Time.Window, y = SR, color = Day)) +
-  geom_smooth(mapping = aes(x = Time.Window, y = SR, color = Day)) 
-  #facet_grid(Day ~ Hab2)
+  geom_point(mapping = aes(x = Minute, y = SR, color = Day)) +
+  geom_smooth(mapping = aes(x = Minute, y = SR, color = Day)) + 
+  facet_grid(~ Hab2)
 
 # SPECIES RICHNESS MODEL -------------------------------------------------------
 
-SRmodel.60.1 <- glmmTMB(SR ~ poly(Time.Window, 2)*Day + Hab2 + (1 | Site),
-                        data = SR.Window.60, family = "poisson", REML = F)
-
-SRmodel.60.2 <- glmmTMB(SR ~ poly(Time.Window, 2)*Day*Site,
+SRmodel.60 <- glmmTMB(SR ~ (Time.Window^2)*Day*Hab2 + (1 | Site),
                       data = SR.Window.60, family = "poisson", REML = F)
-
-AIC(SRmodel.60.1, SRmodel.60.2)
-
-performance::r2(SRmodel.60)
-car::Anova(SRmodel.60, type = 3)
 
 summary(SRmodel.60)
 as.data.frame(confint(SRmodel.60)) %>% 
@@ -51,6 +45,10 @@ performance::r2(SRmodel.60)
 car::Anova(SRmodel.60, type = 3)
 
 # CHECKING MODEL ASSUMPTIONS -------------------------------------
+
+plot(SR.Window.60$Minute, SR.Window.60$SR)
+plot(residuals(SRmodel.60))
+
 # Checking for homogeneity of variance & normality of residuals
 mean(residuals(SRmodel.60)) # VERY close to 0
 
@@ -58,31 +56,48 @@ simulateResiduals(SRmodel.60, plot = T, refit = F, use.u = T)
 shapiro.test(residuals(SRmodel.60)) # W = 0.99486, p-value = 0.0009878, not normal
 # residual plots look okay
 
-## Checking for autocorrelation/independence
-#acf(SR.Window.60$SR) # raw data is autocorrelated
-#acf(residuals(SRmodel.60)) # random effects variable corrects for this
-#runs.test(residuals(SRmodel.60)) # we do not have autocorrelated data
-#
-#library(DataCombine)
-#SR.Window.lag <- data.frame(SR.Window.60, resid.mod = residuals(SRmodel.60)) %>% 
-#  slide(Var = "resid.mod", NewVar = "lag1", slideBy = -1) %>% 
-#  na.omit()
-#
-#SRmodel.lag <- glmmTMB(SR ~ poly(Time.Window, 2)*Day + lag1 + (1 + Day | Site),
-#                   data = SR.Window.lag, family = "gaussian", REML = F)
-#
-#acf(SR.Window.lag$SR) # raw data is autocorrelated
-#acf(residuals(SRmodel.lag)) # random effects variable corrects for this
-#runs.test(residuals(SRmodel.lag)) # we do not have autocorrelated data
+# Checking for autocorrelation/independence
+acf(SR.Window.60$SR) # raw data is autocorrelated
+pacf(SR.Window.60$SR)
+acf(residuals(SRmodel.60)) # random effects variable does not correct for this
+runs.test(residuals(SRmodel.60)) # we have autocorrelated data
+lmtest::dwtest(SRmodel.60) # we have autocorrelated data
+
+library(DataCombine)
+SR.Window.60.lag <- data.frame(SR.Window.60, resid.mod = residuals(SRmodel.60)) %>% 
+  slide(Var = "resid.mod", NewVar = "lag1", slideBy = -1) %>% 
+  na.omit()
+
+SRmodel.60.lag <- glmmTMB(SR ~ (Time.Window^2)*Day*Hab2 + lag1 + (1 | Site),
+                   data = SR.Window.60.lag, family = "gaussian", REML = F)
+
+acf(SR.Window.60$SR) # raw data is autocorrelated
+acf(residuals(SRmodel.60.lag)) # lagged residuals correct for this
+runs.test(residuals(SRmodel.60.lag)) # we do not have autocorrelated data
+
+
+# adding a first order autoregressive covariance structure to account for
+# temporal autocorrelation
+
+SRmodel.60.ar1 <- glmmTMB(SR ~ (Time.Window^2) + Day + Hab2 + (1 | Site) + 
+                        ar1(Time.Window - 1 | Site/Day),
+                      data = SR.Window.60, family = "poisson", REML = F)
+
+acf(SR.Window.60$SR) # raw data is autocorrelated
+acf(residuals(SRmodel.60.ar1)) # lagged residuals correct for this
+runs.test(residuals(SRmodel.60.ar1)) # we do not have autocorrelated data
+
+performance::r2(SRmodel.60.ar1)
+car::Anova(SRmodel.60.ar1, type = 3)
 
 
 # MODEL SELECTION ---------------------------------------------------------
-SRmodel.60 <- glmmTMB(SR ~ poly(Time.Window, 2)*Day + Hab2 + (1 | Site),
-                      data = SR.Window.60, family = "poisson", REML = F)
+SRmodel.60.lag <- glmmTMB(SR ~ (Time.Window^2)*Day*Hab2 + lag1 + (1 | Site),
+                          data = SR.Window.60.lag, family = "gaussian", REML = F)
 
 options(na.action = "na.fail")
 # computes marginal and conditional R^2
-d.out <- MuMIn::dredge(SRmodel.60, extra = list("Rsq" = function(x){performance::r2(x)}))
+d.out <- MuMIn::dredge(SRmodel.60.lag, extra = list("Rsq" = function(x){performance::r2(x)}))
 View(d.out)
 options(na.action = "na.omit")
 write.csv(d.out, "Outputs/sr-model-selection.csv")
@@ -117,7 +132,8 @@ plot(ggpredict(SRmodel.60, terms = c("Time.Window [all]", "Day", "Hab2"),
 
 # TOTAL VOCAL PREVALENCE --------------------------------------------------------
 
-TVP.Window.60 <- read.csv("Outputs/TVP.Window.60")
+TVP.Window.60 <- read.csv("Outputs/TVP.Window.60") %>% 
+  mutate(Minute = Time.Window/60)
 
 # OUTLIERS & NORMALITY OF RESPONSE VARIABLES -----------------------------------
 # This distribution is to be expected when dealing with count data/ many zero counts
@@ -128,19 +144,21 @@ shapiro.test(TVP.Window.60$TVP) # W = 0.98492, p-value = 3.958e-09, not normal
 
 library(ggplot2)
 ggplot(data = TVP.Window.60) +
-  geom_point(mapping = aes(x = Time.Window, y = TVP, color = Site)) +
-  geom_smooth(mapping = aes(x = Time.Window, y = TVP)) + 
+  geom_point(mapping = aes(x = Minute, y = TVP, color = Site)) +
+  geom_smooth(mapping = aes(x = Minute, y = TVP)) + 
   facet_grid(~ Day)
+
+ggplot(data = TVP.Window.60) +
+  geom_point(mapping = aes(x = Minute, y = TVP, color = Day)) +
+  geom_smooth(mapping = aes(x = Minute, y = TVP, color = Day)) + 
+  facet_grid(~ Hab2)
 
 # TOTAL VOCAL PREVALENCE MODEL -------------------------------------------------------
 
-TVPmodel.60 <- glmmTMB(TVP ~ poly(Time.Window, 2)*Day + Hab2 + (1 | Site),
+TVPmodel.60 <- glmmTMB(TVP ~ poly(Time.Window, 2)*Day*Hab2 + (1 | Site),
                       data = TVP.Window.60, family = "poisson", REML = F)
 
-TVPmodel.60 <- glmmTMB(TVP ~ poly(Time.Window, 2)*Day*Site,
-                       data = TVP.Window.60, family = "poisson", REML = F)
-
-TVPmodel.60 <- glmmTMB(TVP ~ poly(Time.Window, 2)*Day + Site,
+TVPmodel.60 <- glmmTMB(TVP ~ (Time.Window**2)*Day + Hab2 + (1 | Site),
                        data = TVP.Window.60, family = "poisson", REML = F)
 
 summary(TVPmodel.60)
@@ -189,7 +207,7 @@ TVPmodel.60 <- glmmTMB(TVP ~ poly(Time.Window, 2)*Day + Hab2 + (1 | Site),
 
 options(na.action = "na.fail")
 # computes marginal and conditional R^2
-d.out <- MuMIn::dredge(TVPmodel.60, extra = list("Rsq" = function(x){performance::r2(x)}))
+d.out <- MuMIn::dredge(TVPmodel.60.lag, extra = list("Rsq" = function(x){performance::r2(x)}))
 View(d.out)
 options(na.action = "na.omit")
 write.csv(d.out, "Outputs/tvp-model-selection.csv")
@@ -206,15 +224,15 @@ car::Anova(topTVPmodel.60, type = 3)
 
 # computing post-hoc comparisons to determine significant differences among the modeled means
 # need to switch model to be as.factor(Time.Window) first before performing this comparison
-emmeans(topTVPmodel.60, "Day", type = "response") %>% 
+emmeans(TVPmodel.60.lag, "Day", type = "response") %>% 
   cld(Letter = "abcdefg")
 
-#emmeans(topTVPmodel.60, "Site", type = "response") %>% 
-#  cld(Letter = "abcdefg")
+emmeans(TVPmodel.60.lag, "Hab2", type = "response") %>% 
+  cld(Letter = "abcdefg")
 
 # a cool visualization of the predicted means and variances
 library(ggeffects)
-plot(ggpredict(topTVPmodel.60, terms = c("Time.Window [all]", "Day"),
+plot(ggpredict(TVPmodel.60.lag, terms = c("Time.Window [all]", "Day", "Hab2"),
                type = "random", plot = T))
 
 
