@@ -35,27 +35,20 @@ shapiro.test(SR.Window.60$SR) # W = 0.97624, p-value = 2.612e-12, not normal
 ggplot(data = SR.Window.60) +
   geom_point(mapping = aes(x = Minute, y = SR, color = Day)) +
   geom_smooth(mapping = aes(x = Minute, y = SR, color = Day)) + 
-  facet_grid(~ Hab2)
+  facet_grid(Site ~ Day)
 
 # SPECIES RICHNESS MODEL -------------------------------------------------------
 
 SRmodel.60 <- glmmTMB(SR ~ (Time.Window^2)*Day + Hab2 + (1 | Site),
                       data = SR.Window.60, family = "poisson", REML = F)
 
-performance::check_singularity(SRmodel.60)
-summary(SRmodel.60)
-as.data.frame(confint(SRmodel.60)) %>% 
-  mutate(Estimate = exp(Estimate), `2.5 %` = exp(`2.5 %`), `97.5 %` = exp(`97.5 %`))
-performance::r2(SRmodel.60)
-car::Anova(SRmodel.60, type = 3)
-
 # CHECKING MODEL ASSUMPTIONS -------------------------------------
 # Checking for homogeneity of variance & normality of residuals
 mean(residuals(SRmodel.60)) # VERY close to 0
 
 simulateResiduals(SRmodel.60, plot = T, refit = F, use.u = T)
-shapiro.test(residuals(SRmodel.60)) # W = 0.99486, p-value = 0.0009878, not normal
-# residual plots look okay
+shapiro.test(residuals(SRmodel.60)) # W = 0.99793, p-value = 0.2022, normal!
+# residual plots look great
 
 # Checking for autocorrelation/independence
 acf(SR.Window.60$SR) # raw data is autocorrelated
@@ -65,6 +58,39 @@ pacf(residuals(SRmodel.60))
 runs.test(residuals(SRmodel.60)) # we have autocorrelated data
 lmtest::dwtest(SRmodel.60) # we have autocorrelated data
 
+library(DataCombine)
+SR.Window.60.lag <- data.frame(SR.Window.60, resid.mod = residuals(SRmodel.60)) %>% 
+  slide(Var = "resid.mod", GroupVar = "SiteDay", NewVar = "lag1", slideBy = -1) %>% 
+  na.omit()
+
+SRmodel.60.lag <- glmmTMB(SR ~ (Time.Window^2)*Day + Hab2 + lag1 + (1 | Site),
+                          data = SR.Window.60.lag, family = "poisson", REML = F)
+
+acf(SR.Window.60$SR) # raw data is autocorrelated
+acf(residuals(SRmodel.60.lag)) # lagged residuals correct for this
+pacf(SR.Window.60$SR)
+pacf(residuals(SRmodel.60.lag)) # visually, we do not have autocorrelated data
+runs.test(residuals(SRmodel.60.lag)) # we do not have autocorrelated data
+lmtest::dwtest(SRmodel.60.lag) # we do not have autocorrelated data
+
+
+performance::check_singularity(SRmodel.60.lag)
+summary(SRmodel.60)
+as.data.frame(confint(SRmodel.60)) %>% 
+  mutate(Estimate = exp(Estimate), `2.5 %` = exp(`2.5 %`), `97.5 %` = exp(`97.5 %`))
+performance::r2(SRmodel.60)
+car::Anova(SRmodel.60, type = 3)
+
+
+
+
+
+
+
+
+
+# FIRST ORDER AUTOGRESSIVE STRUCTURE --------------------------------------
+
 
 # creating a dummy variable for ar1 structure
 SR.Window.60 <- SR.Window.60 %>% 
@@ -72,8 +98,8 @@ SR.Window.60 <- SR.Window.60 %>%
 
 # adding a first order autoregressive covariance structure to account for
 # temporal autocorrelation
-SRmodel.60.ar1 <- glmmTMB(SR ~ (Time.Window^2) + Hab2 + (1 | Site:Day) +
-                            ar1(factor(Time.Window) - 1 | Site:Day),
+SRmodel.60.ar1 <- glmmTMB(SR ~ (Time.Window^2) + Day + Hab2 + (1 | Site) +
+                            ar1(factor(Time.Window) - 1 | Day),
                           data = SR.Window.60, family = "poisson", REML = F)
 
 performance::check_singularity(SRmodel.60.ar1)
@@ -89,42 +115,92 @@ VarCorr(SRmodel.60.ar1, condVar = TRUE)
 car::Anova(SRmodel.60.ar1, type = 3)
 
 
+
+
+
+
+
+
+
+
+
+
+
+# GAM ---------------------------------------------------------------------
+
 library(mgcv)
-SRgam.60.ar1 <- gam(SR ~ s(Time.Window) + Day + Hab2 + s(Site, bs = "re"),
-           correlation = corARMA(form = ~ Time.Window | SiteDay, p = 1),
-           family = poisson,
+SRgam.60.ar1 <- mgcv::gam(SR ~ s(Time.Window) + Day + Hab2 + Site,
+                          correlation = corAR1(form = ~ Time.Window | SiteDay, p = 1),
+                          family = poisson,
+                          method = "REML",
+                          data = SR.Window.60)
+plot(SRgam.60.ar1, residuals = TRUE,pch = 1)
+
+
+SRgam.60.ar1 <- mgcv::gam(SR ~ s(Time.Window, by = Day) + Day + Hab2 + 
+                            s(Site, bs = 're'),
+           correlation = corAR1(form = ~ Time.Window),
+           family = "poisson",
            method = "REML",
            data = SR.Window.60)
+
+acf(SR.Window.60$SR) # raw data is autocorrelated
+acf(SRgam.60.ar1$residuals) # visually, we do not have autocorrelated data
+pacf(SRgam.60.ar1$residuals) # visually, we do not have autocorrelated data
+
+gam.check(SRgam.60.ar1)
+concurvity(SRgam.60.ar1, full = TRUE) # no issues with concurvity
+concurvity(SRgam.60.ar1, full = FALSE) # no issues with concurvity
+summary(SRgam.60.ar1)
+
+
+options(na.action = "na.fail")
+# computes marginal and conditional R^2
+d.out <- MuMIn::dredge(SRmodel.60.ar1)
+#, extra = list("Rsq" = function(x){performance::r2(x)}))
+View(d.out)
+options(na.action = "na.omit")
+write.csv(d.out, "Outputs/sr-model-selection.csv")
+
+plot(SRgam.60.ar1, shade = TRUE, rug = FALSE, shift = coef(SRgam.60.ar1)[1], trans = exp, pages = 1,
+     all.terms = TRUE)
+
+library(gratia)
+draw()
+
+
+
+
+
+
+plot(SRgam.60.ar1, residuals = TRUE, pages = 1)
+
+plot(SRgam.60.ar1, shade = TRUE, rug = FALSE, residuals = TRUE,
+     pch = 1, cex = 1, pages = 1, all.terms = FALSE)
+
+
+
+plot(SRgam.60.ar1, seWithMean = TRUE, shift = coef(SRgam.60.ar1)[1], pages = 1)
+
+acf(SR.Window.60$SR) # raw data is autocorrelated
+acf(residuals(SRgam.60.ar1)) # visually, we do not have autocorrelated data
+pacf(SRgam.60.ar1)
+pacf(residuals(SRgam.60.ar1)) # visually, we do not have autocorrelated data
+
 
 summary(SRgam.60.ar1)
 plot(SRgam.60.ar1, resid = TRUE)
 plot(SRgam.60.ar1, se = TRUE)
+
 gam.check(SRgam.60.ar1)
 
+plot(SRgam.60.ar1$)
 
 
 
 
 
 
-
-SRmodel.60 <- glmmTMB(SR ~ (Time.Window^2)*Day + Hab2 + (1 | Site),
-                      data = SR.Window.60, family = "poisson", REML = F)
-
-library(DataCombine)
-SR.Window.60.lag <- data.frame(SR.Window.60, resid.mod = residuals(SRmodel.60)) %>% 
-  slide(Var = "resid.mod", GroupVar = "SiteDay", NewVar = "lag1", slideBy = -1) %>% 
-  na.omit()
-
-SRmodel.60.lag <- glmmTMB(SR ~ (Time.Window^2)*Day + Hab2 + lag1 + (1 | Site),
-                   data = SR.Window.60.lag, family = "poisson", REML = F)
-
-acf(SR.Window.60$SR) # raw data is autocorrelated
-acf(residuals(SRmodel.60.lag)) # lagged residuals correct for this
-pacf(SR.Window.60$SR)
-pacf(residuals(SRmodel.60.lag)) # visually, we do not have autocorrelated data
-runs.test(residuals(SRmodel.60.lag)) # we do not have autocorrelated data
-lmtest::dwtest(SRmodel.60.lag) # we do not have autocorrelated data
 
 
 # MODEL SELECTION ---------------------------------------------------------
@@ -170,7 +246,11 @@ plot(ggpredict(SRmodel.60, terms = c("Time.Window [all]", "Day", "Hab2"),
 # TOTAL VOCAL PREVALENCE --------------------------------------------------------
 
 TVP.Window.60 <- read.csv("Outputs/TVP.Window.60") %>% 
-  mutate(Minute = Time.Window/60)
+  mutate(Minute = Time.Window/60,
+         Site = as.factor(Site),
+         Day = as.factor(Day),
+         Hab2 = as.factor(Hab2),
+         SiteDay = as.factor(str_c(Site, Day))) 
 
 # OUTLIERS & NORMALITY OF RESPONSE VARIABLES -----------------------------------
 # This distribution is to be expected when dealing with count data/ many zero counts
@@ -195,18 +275,12 @@ ggplot(data = TVP.Window.60) +
 TVPmodel.60 <- glmmTMB(TVP ~ (Time.Window^2)*Day + Hab2 + (1 | Site),
                        data = TVP.Window.60, family = "poisson", REML = F)
 
-summary(TVPmodel.60)
-as.data.frame(confint(TVPmodel.60)) %>% 
-  mutate(Estimate = exp(Estimate), `2.5 %` = exp(`2.5 %`), `97.5 %` = exp(`97.5 %`))
-performance::r2(TVPmodel.60)
-car::Anova(TVPmodel.60, type = 3)
-
 # CHECKING MODEL ASSUMPTIONS -------------------------------------
 # Checking for homogeneity of variance & normality of residuals
 mean(residuals(TVPmodel.60)) # VERY close to 0
 
 simulateResiduals(TVPmodel.60, plot = T, refit = F, use.u = T)
-runs.test(residuals(TVPmodel.60)) # W = 0.99464, p-value = 0.6516, normal!
+shapiro.test(residuals(TVPmodel.60)) # W = 0.99545, p-value = 0.002592, not normal
 # residual plots look okay
 
 # Checking for autocorrelation/independence
@@ -215,7 +289,44 @@ acf(residuals(TVPmodel.60)) # random effects variable does not correct for this
 pacf(TVP.Window.60$TVP)
 pacf(residuals(TVPmodel.60)) # visually, we do not have autocorrelated data
 runs.test(residuals(TVPmodel.60)) # we have autocorrelated data
-lmtest::dwtest(SRmodel.60.lag) # we do not have autocorrelated data
+lmtest::dwtest(TVPmodel.60) # we have autocorrelated data
+
+library(DataCombine)
+TVP.Window.60.lag <- data.frame(TVP.Window.60, resid.mod = residuals(TVPmodel.60)) %>% 
+  slide(Var = "resid.mod", GroupVar = "SiteDay", NewVar = "lag1", slideBy = -1) %>% 
+  na.omit()
+
+TVPmodel.60.lag <- glmmTMB(TVP ~ (Time.Window^2)*Day + Hab2 + lag1 + (1 | Site),
+                          data = TVP.Window.60.lag, family = "poisson", REML = F)
+
+performance::check_singularity(TVPmodel.60.lag)
+acf(TVP.Window.60$TVP) # raw data is autocorrelated
+acf(residuals(TVPmodel.60.lag)) # lagged residuals correct for this
+pacf(TVP.Window.60$TVP)
+pacf(residuals(TVPmodel.60.lag)) # visually, we do not have autocorrelated data
+lmtest::dwtest(TVPmodel.60.lag) # we do NOT have autocorrelated data
+
+# Checking for homogeneity of variance & normality of residuals
+mean(residuals(TVPmodel.60.lag)) # VERY close to 0
+
+simulateResiduals(TVPmodel.60, plot = T, refit = F, use.u = T)
+shapiro.test(residuals(TVPmodel.60.lag)) # W = 0.99725, p-value = 0.06686, normal!
+# residual plots look okay
+
+summary(TVPmodel.60.lag)
+as.data.frame(confint(TVPmodel.60.lag)) %>% 
+  mutate(Estimate = exp(Estimate), `2.5 %` = exp(`2.5 %`), `97.5 %` = exp(`97.5 %`))
+performance::r2(TVPmodel.60.lag)
+car::Anova(TVPmodel.60.lag, type = 3)
+
+
+
+
+
+
+
+
+
 
 
 # adding a first order autoregressive covariance structure to account for
@@ -228,7 +339,6 @@ acf(TVP.Window.60$TVP) # raw data is autocorrelated
 acf(residuals(TVPmodel.60.ar1)) # visually, we do not have autocorrelated data
 pacf(TVP.Window.60$TVP)
 pacf(residuals(TVPmodel.60.ar1)) # visually, we do not have autocorrelated data
-runs.test(residuals(TVPmodel.60.ar1)) # # we do not have autocorrelated data
 lmtest::dwtest(TVPmodel.60.ar1) # we have autocorrelated data
 
 summary(TVPmodel.60.ar1)
@@ -244,25 +354,6 @@ performance::check_singularity(TVPmodel.60.ar1)
 
 
 
-
-library(DataCombine)
-TVP.Window.60.lag <- data.frame(TVP.Window.60, resid.mod = residuals(TVPmodel.60)) %>% 
-  slide(Var = "resid.mod", NewVar = "lag1", slideBy = -1) %>% 
-  na.omit()
-
-TVPmodel.60.lag <- glmmTMB(TVP ~ poly(Time.Window, 2)*Day + Hab2 + lag1 + (1 | Site),
-                   data = TVP.Window.60.lag, family = "poisson", REML = F)
-
-acf(TVP.Window.60.lag$TVP) # raw data is autocorrelated
-acf(residuals(TVPmodel.60.lag)) # random effects variable corrects for this
-runs.test(residuals(TVPmodel.60.lag)) # we still have autocorrelated data
-
-# Checking for homogeneity of variance & normality of residuals
-mean(residuals(TVPmodel.60.lag)) # VERY close to 0
-
-simulateResiduals(TVPmodel.60.lag, plot = T, refit = F, use.u = T)
-runs.test(residuals(TVPmodel.60.lag)) # W = 0.99464, p-value = 0.6516, normal!
-# residual plots look okay
 
 
 # MODEL SELECTION ---------------------------------------------------------
