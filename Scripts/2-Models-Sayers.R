@@ -21,9 +21,10 @@ library(multcomp)
 SR.Total <- read.csv("Outputs/SR.Total")
 SR.Window.60 <- read.csv("Outputs/SR.Window.60") %>% 
   mutate(Minute = Time.Window/60,
+         fTime.Window = factor(Time.Window),
          Site = as.factor(Site),
          Day = as.factor(Day),
-         Hab2 = as.factor(Hab2),
+         Hab1 = as.factor(Hab1),
          SiteDay = as.factor(str_c(Site, Day))) 
 
 # OUTLIERS & NORMALITY OF RESPONSE VARIABLES -----------------------------------
@@ -35,19 +36,22 @@ shapiro.test(SR.Window.60$SR) # W = 0.97624, p-value = 2.612e-12, not normal
 ggplot(data = SR.Window.60) +
   geom_point(mapping = aes(x = Minute, y = SR, color = Day)) +
   geom_smooth(mapping = aes(x = Minute, y = SR, color = Day)) + 
-  facet_grid(Site ~ Day)
+  facet_grid(~ Day)
 
 # SPECIES RICHNESS MODEL -------------------------------------------------------
 
-SRmodel.60 <- glmmTMB(SR ~ (Time.Window^2)*Day + Hab2 + (1 | Site),
+SRmodel.60 <- glmmTMB(SR ~ (Time.Window^2)*Day + (1 | Site),
                       data = SR.Window.60, family = "poisson", REML = F)
+
+summary(SRmodel.60)
+performance::check_singularity(SRmodel.60)
 
 # CHECKING MODEL ASSUMPTIONS -------------------------------------
 # Checking for homogeneity of variance & normality of residuals
 mean(residuals(SRmodel.60)) # VERY close to 0
 
 simulateResiduals(SRmodel.60, plot = T, refit = F, use.u = T)
-shapiro.test(residuals(SRmodel.60)) # W = 0.99793, p-value = 0.2022, normal!
+shapiro.test(residuals(SRmodel.60)) # W = 0.99803, p-value = 0.2365, normal!
 # residual plots look great
 
 # Checking for autocorrelation/independence
@@ -63,7 +67,7 @@ SR.Window.60.lag <- data.frame(SR.Window.60, resid.mod = residuals(SRmodel.60)) 
   slide(Var = "resid.mod", GroupVar = "SiteDay", NewVar = "lag1", slideBy = -1) %>% 
   na.omit()
 
-SRmodel.60.lag <- glmmTMB(SR ~ (Time.Window^2)*Day + Hab2 + lag1 + (1 | Site),
+SRmodel.60.lag <- glmmTMB(SR ~ (Time.Window^2)*Day + lag1 + (1 | Site),
                           data = SR.Window.60.lag, family = "poisson", REML = F)
 
 acf(SR.Window.60$SR) # raw data is autocorrelated
@@ -82,6 +86,48 @@ performance::r2(SRmodel.60)
 car::Anova(SRmodel.60, type = 3)
 
 
+# MODEL SELECTION ---------------------------------------------------------
+
+# checking the relative importance of site
+SRmodel.60.lag <- glmmTMB(SR ~ (Time.Window^2)*Day + lag1 + (1 | Site),
+                          data = SR.Window.60.lag, family = "poisson", REML = F)
+SRmodel.60.lag.x <- glmmTMB(SR ~ (Time.Window^2)*Day + lag1,
+                          data = SR.Window.60.lag, family = "poisson", REML = F)
+# model with site as an RE performs a lot better
+AIC(SRmodel.60.lag, SRmodel.60.lag.x) 
+
+options(na.action = "na.fail")
+# computes marginal and conditional R^2
+d.out <- MuMIn::dredge(SRmodel.60.lag, extra = list("Rsq" = function(x){performance::r2(x)}))
+View(d.out)
+options(na.action = "na.omit")
+write.csv(d.out, "Outputs/sr-model-selection.csv")
+# model with lagged residuals 
+
+# 1st place model by a long-shot (R2 = 0.64, wi = 76%)
+topSRmodel <- glmmTMB(SR ~ poly(Time.Window, 2)*Day + Hab1 + (1 | Site),
+                      data = SR.Window.60, family = "poisson", REML = F)
+
+summary(topSRmodel)
+as.data.frame(confint(topSRmodel)) %>% 
+  mutate(Estimate = exp(Estimate), `2.5 %` = exp(`2.5 %`), `97.5 %` = exp(`97.5 %`))
+performance::r2(topSRmodel)
+car::Anova(topSRmodel, type = 3)
+
+# computing post-hoc comparisons to determine significant differences among the modeled means
+
+emmeans(SRmodel.60.lag, "Day", type = "response") %>% 
+  cld(Letter = "abcdefg")
+
+#emmeans(SRmodel.60.lag, "Hab1", type = "response") %>% 
+#  cld(Letter = "abcdefg")
+
+# a cool visualization of the predicted means and variances
+library(ggeffects)
+plot(ggpredict(SRmodel.60, terms = c("Time.Window [all]", "Day"),
+               type = "random", plot = T))
+
+
 
 
 
@@ -98,8 +144,8 @@ SR.Window.60 <- SR.Window.60 %>%
 
 # adding a first order autoregressive covariance structure to account for
 # temporal autocorrelation
-SRmodel.60.ar1 <- glmmTMB(SR ~ (Time.Window^2) + Day + Hab2 + (1 | Site) +
-                            ar1(factor(Time.Window) - 1 | Day),
+SRmodel.60.ar1 <- glmmTMB(SR ~ (Minute^2)*Day + Site +
+                            ar1(factor(Minute) - 1 | SiteDay),
                           data = SR.Window.60, family = "poisson", REML = F)
 
 performance::check_singularity(SRmodel.60.ar1)
@@ -108,6 +154,8 @@ acf(SR.Window.60$SR) # raw data is autocorrelated
 acf(residuals(SRmodel.60.ar1)) # visually, we do not have autocorrelated data
 pacf(SR.Window.60$SR)
 pacf(residuals(SRmodel.60.ar1)) # visually, we do not have autocorrelated data
+runs.test(residuals(SRmodel.60.ar1)) # we do not have autocorrelated data
+lmtest::dwtest(SRmodel.60.ar1) # we do not have autocorrelated data
 
 summary(SRmodel.60.ar1)
 performance::r2(SRmodel.60.ar1)
@@ -129,30 +177,29 @@ car::Anova(SRmodel.60.ar1, type = 3)
 # GAM ---------------------------------------------------------------------
 
 library(mgcv)
-SRgam.60.ar1 <- mgcv::gam(SR ~ s(Time.Window) + Day + Hab2 + Site,
-                          correlation = corAR1(form = ~ Time.Window | SiteDay, p = 1),
-                          family = poisson,
-                          method = "REML",
-                          data = SR.Window.60)
-plot(SRgam.60.ar1, residuals = TRUE,pch = 1)
-
-
-SRgam.60.ar1 <- mgcv::gam(SR ~ s(Time.Window, by = Day) + Day + Hab2 + 
-                            s(Site, bs = 're'),
-           correlation = corAR1(form = ~ Time.Window),
+SRgam.60.ar1 <- mgcv::gamm(SR ~ s(Minute, by = Day) + Day + s(Site, bs = "re"),
+           correlation = corAR1(form = ~ Minute | factor(SiteDay)),
            family = "poisson",
            method = "REML",
            data = SR.Window.60)
+summary(SRgam.60.ar1$gam)
 
+performance::check_singularity(SRgam.60.ar1)
 acf(SR.Window.60$SR) # raw data is autocorrelated
-acf(SRgam.60.ar1$residuals) # visually, we do not have autocorrelated data
-pacf(SRgam.60.ar1$residuals) # visually, we do not have autocorrelated data
+acf(resid(SRgam.60.ar1$lme, type = "normalized")) # visually, we do not have autocorrelated data
+pacf(resid(SRgam.60.ar1$lme, type = "normalized")) # visually, we do not have autocorrelated data
+runs.test(resid(SRgam.60.ar1$lme, type = "normalized")) # we do not have autocorrelated data
+lmtest::dwtest(SRgam.60.ar1$residuals) # we do not have autocorrelated data
 
-gam.check(SRgam.60.ar1)
-concurvity(SRgam.60.ar1, full = TRUE) # no issues with concurvity
-concurvity(SRgam.60.ar1, full = FALSE) # no issues with concurvity
-summary(SRgam.60.ar1)
+plot(SRgam.60.ar1$gam, shade = TRUE, rug = FALSE, trans = exp, pages = 1,
+     all.terms = TRUE)
 
+
+par(mfrow=c(2,2))
+gam.check(SRgam.60.ar1$gam)
+concurvity(SRgam.60.ar1$gam, full = TRUE) # no issues with concurvity
+concurvity(SRgam.60.ar1$gam, full = FALSE) # no issues with concurvity
+summary(SRgam.60.ar1$gam)
 
 options(na.action = "na.fail")
 # computes marginal and conditional R^2
@@ -162,20 +209,13 @@ View(d.out)
 options(na.action = "na.omit")
 write.csv(d.out, "Outputs/sr-model-selection.csv")
 
-plot(SRgam.60.ar1, shade = TRUE, rug = FALSE, shift = coef(SRgam.60.ar1)[1], trans = exp, pages = 1,
+plot(SRgam.60.ar1$gam, shade = TRUE, rug = FALSE, shift = coef(SRgam.60.ar1$gam)[1], trans = exp, pages = 1,
      all.terms = TRUE)
 
-library(gratia)
-draw()
 
 
 
-
-
-
-plot(SRgam.60.ar1, residuals = TRUE, pages = 1)
-
-plot(SRgam.60.ar1, shade = TRUE, rug = FALSE, residuals = TRUE,
+plot(SRgam.60.ar1$gam, shade = TRUE, rug = FALSE, residuals = TRUE, trans = exp,
      pch = 1, cex = 1, pages = 1, all.terms = FALSE)
 
 
@@ -203,40 +243,6 @@ plot(SRgam.60.ar1$)
 
 
 
-# MODEL SELECTION ---------------------------------------------------------
-SRmodel.60.lag <- glmmTMB(SR ~ (Time.Window^2)*Day*Hab2 + lag1 + (1 | Site),
-                          data = SR.Window.60.lag, family = "poisson", REML = F)
-
-options(na.action = "na.fail")
-# computes marginal and conditional R^2
-d.out <- MuMIn::dredge(SRmodel.60.ar1)
-#, extra = list("Rsq" = function(x){performance::r2(x)}))
-View(d.out)
-options(na.action = "na.omit")
-write.csv(d.out, "Outputs/sr-model-selection.csv")
-
-# 1st place model by a long-shot (R2 = 0.64, wi = 76%)
-topSRmodel <- glmmTMB(SR ~ poly(Time.Window, 2)*Day + Hab2 + (1 | Site),
-                      data = SR.Window.60, family = "poisson", REML = F)
-
-summary(topSRmodel)
-as.data.frame(confint(topSRmodel)) %>% 
-  mutate(Estimate = exp(Estimate), `2.5 %` = exp(`2.5 %`), `97.5 %` = exp(`97.5 %`))
-performance::r2(topSRmodel)
-car::Anova(topSRmodel, type = 3)
-
-# computing post-hoc comparisons to determine significant differences among the modeled means
-
-emmeans(topSRmodel, "Day", type = "response") %>% 
-  cld(Letter = "abcdefg")
-
-emmeans(topSRmodel, "Hab2", type = "response") %>% 
-  cld(Letter = "abcdefg")
-
-# a cool visualization of the predicted means and variances
-library(ggeffects)
-plot(ggpredict(SRmodel.60, terms = c("Time.Window [all]", "Day", "Hab2"),
-               type = "random", plot = T))
 
 
 
@@ -249,7 +255,7 @@ TVP.Window.60 <- read.csv("Outputs/TVP.Window.60") %>%
   mutate(Minute = Time.Window/60,
          Site = as.factor(Site),
          Day = as.factor(Day),
-         Hab2 = as.factor(Hab2),
+         Hab1 = as.factor(Hab1),
          SiteDay = as.factor(str_c(Site, Day))) 
 
 # OUTLIERS & NORMALITY OF RESPONSE VARIABLES -----------------------------------
@@ -268,11 +274,11 @@ ggplot(data = TVP.Window.60) +
 ggplot(data = TVP.Window.60) +
   geom_point(mapping = aes(x = Minute, y = TVP, color = Day)) +
   geom_smooth(mapping = aes(x = Minute, y = TVP, color = Day)) + 
-  facet_grid(~ Hab2)
+  facet_grid(~ Hab1)
 
 # TOTAL VOCAL PREVALENCE MODEL -------------------------------------------------------
 
-TVPmodel.60 <- glmmTMB(TVP ~ (Time.Window^2)*Day + Hab2 + (1 | Site),
+TVPmodel.60 <- glmmTMB(TVP ~ (Time.Window^2)*Day + (1 | Site),
                        data = TVP.Window.60, family = "poisson", REML = F)
 
 # CHECKING MODEL ASSUMPTIONS -------------------------------------
@@ -296,7 +302,7 @@ TVP.Window.60.lag <- data.frame(TVP.Window.60, resid.mod = residuals(TVPmodel.60
   slide(Var = "resid.mod", GroupVar = "SiteDay", NewVar = "lag1", slideBy = -1) %>% 
   na.omit()
 
-TVPmodel.60.lag <- glmmTMB(TVP ~ (Time.Window^2)*Day + Hab2 + lag1 + (1 | Site),
+TVPmodel.60.lag <- glmmTMB(TVP ~ (Time.Window^2)*Day + lag1 + (1 | Site),
                           data = TVP.Window.60.lag, family = "poisson", REML = F)
 
 performance::check_singularity(TVPmodel.60.lag)
@@ -331,7 +337,7 @@ car::Anova(TVPmodel.60.lag, type = 3)
 
 # adding a first order autoregressive covariance structure to account for
 # temporal autocorrelation
-TVPmodel.60.ar1 <- glmmTMB(TVP ~ (Time.Window^2)*Day + Hab2 + (1 | Site) + 
+TVPmodel.60.ar1 <- glmmTMB(TVP ~ (Time.Window^2)*Day + (1 | Site) + 
                              ar1(factor(Time.Window) + 0 | Day:Site),
                            data = TVP.Window.60, family = "poisson")
 
@@ -357,7 +363,7 @@ performance::check_singularity(TVPmodel.60.ar1)
 
 
 # MODEL SELECTION ---------------------------------------------------------
-TVPmodel.60 <- glmmTMB(TVP ~ poly(Time.Window, 2)*Day + Hab2 + (1 | Site),
+TVPmodel.60 <- glmmTMB(TVP ~ poly(Time.Window, 2)*Day + (1 | Site),
                        data = TVP.Window.60, family = "poisson", REML = F)
 
 options(na.action = "na.fail")
@@ -382,12 +388,12 @@ car::Anova(topTVPmodel.60, type = 3)
 emmeans(TVPmodel.60.lag, "Day", type = "response") %>% 
   cld(Letter = "abcdefg")
 
-emmeans(TVPmodel.60.lag, "Hab2", type = "response") %>% 
+emmeans(TVPmodel.60.lag, "Hab1", type = "response") %>% 
   cld(Letter = "abcdefg")
 
 # a cool visualization of the predicted means and variances
 library(ggeffects)
-plot(ggpredict(TVPmodel.60.lag, terms = c("Time.Window [all]", "Day", "Hab2"),
+plot(ggpredict(TVPmodel.60.lag, terms = c("Time.Window [all]", "Day", "Hab1"),
                type = "random", plot = T))
 
 
@@ -436,17 +442,17 @@ VP.Window.60 %>%
   ggplot() +
   geom_point(mapping = aes(x = Time.Window, y = VP, color = Site)) +
   geom_smooth(mapping = aes(x = Time.Window, y = VP, color = Site)) + 
-  facet_grid(Day ~ Hab2)
+  facet_grid(Day ~ Hab1)
 
 # visualizing total encounters
 ggplot(data = TE.Window.10.spp) +
   geom_boxplot(mapping = aes(x = Site:Day, y = TE)) +
   #geom_smooth(mapping = aes(x = Time.Window, y = VP, color = Site)) + 
-  facet_grid(~ Hab2)
+  facet_grid(~ Hab1)
 
 # SPECIES-SPECIFIC VOCAL PREVALENCE MODEL -------------------------------------------------------
 
-#VPmodel.10 <- glmmTMB(VP ~ Time.Window + Day + Hab2 + Edge.Distance +
+#VPmodel.10 <- glmmTMB(VP ~ Time.Window + Day + Hab1 + Edge.Distance +
 #                        (1 | Site) + (1 | Species),
 #                      data = VP.Window.10, family = "binomial", REML = F)
 #
@@ -468,30 +474,30 @@ ggplot(data = TE.Window.10.spp) +
 #VPmodel.60.4 <- glmmTMB(cbind(VP, VA) ~ poly(Time.Window, 2)*Day + Site + (1 | Species),
 #                        data = VP.Window.60, family = "binomial", REML = F)
 #
-#VPmodel.60.5 <- glmmTMB(cbind(VP, VA) ~ Time.Window + Day + Hab2 + (1 | Site) + (1 | Species),
+#VPmodel.60.5 <- glmmTMB(cbind(VP, VA) ~ Time.Window + Day + Hab1 + (1 | Site) + (1 | Species),
 #                        data = VP.Window.60, family = "binomial", REML = F)
 #
-#VPmodel.60.6 <- glmmTMB(cbind(VP, VA) ~ poly(Time.Window, 2) + Day + Hab2 + (1 | Site) + (1 | Species),
+#VPmodel.60.6 <- glmmTMB(cbind(VP, VA) ~ poly(Time.Window, 2) + Day + Hab1 + (1 | Site) + (1 | Species),
 #                        data = VP.Window.60, family = "binomial", REML = F)
 
 
 
 
 
-VPmodel.60 <- glmmTMB(cbind(VP, VA) ~ poly(Time.Window, 2)*Day + Hab2 + (1 | Site) + (1 | Species),
+VPmodel.60 <- glmmTMB(cbind(VP, VA) ~ poly(Time.Window, 2)*Day + Hab1 + (1 | Site) + (1 | Species),
                       data = VP.Window.60, family = "binomial", REML = F)
 
 VPmodel.60.1 <- glmmTMB(cbind(VP, VA) ~ poly(Time.Window, 2)*Day + Site + (1 | Species),
                       data = VP.Window.60, family = "binomial", REML = F)
 
 # won't converge
-#VPmodel.60.2 <- glmmTMB(cbind(VP, VA) ~ poly(Time.Window, 2)*Day + Hab2 + (1 + Day | Site) + (1 + Time.Window | Species),
+#VPmodel.60.2 <- glmmTMB(cbind(VP, VA) ~ poly(Time.Window, 2)*Day + Hab1 + (1 + Day | Site) + (1 + Time.Window | Species),
 #                        data = VP.Window.60, family = "binomial", REML = F)
 
-VPmodel.60.3 <- glmmTMB(cbind(VP, VA) ~ poly(Time.Window, 2)*Day + Hab2 + (1 | Site) + (1 + Time.Window | Species),
+VPmodel.60.3 <- glmmTMB(cbind(VP, VA) ~ poly(Time.Window, 2)*Day + Hab1 + (1 | Site) + (1 + Time.Window | Species),
                       data = VP.Window.60, family = "binomial", REML = F)
 
-VPmodel.60.4 <- glmmTMB(cbind(VP, VA) ~ poly(Time.Window, 2) + Day + Hab2 + (1 | Site) + (1 + Time.Window | Species),
+VPmodel.60.4 <- glmmTMB(cbind(VP, VA) ~ poly(Time.Window, 2) + Day + Hab1 + (1 | Site) + (1 + Time.Window | Species),
                         data = VP.Window.60, family = "binomial", REML = F)
 
 AIC(VPmodel.60.1, VPmodel.60.2, VPmodel.60.3, VPmodel.60)
@@ -503,17 +509,17 @@ performance::r2(VPmodel.60)
 car::Anova(VPmodel.60, type = 3)
 
 
-#VPmodel.60 <- glmmTMB(cbind(VP, VA) ~ Time.Window + Day + Hab2 +
+#VPmodel.60 <- glmmTMB(cbind(VP, VA) ~ Time.Window + Day + Hab1 +
 #                        (1 | Site) + (1 | Species),
 #                        #(1 + Time.Window*Day | Species)
 #                      data = VP.Window.60, family = "binomial", REML = F)
 #
-#VPmodel.60.2 <- glmmTMB(cbind(VP, VA) ~ Time.Window + Day + Hab2 +
+#VPmodel.60.2 <- glmmTMB(cbind(VP, VA) ~ Time.Window + Day + Hab1 +
 #                        (1 | Site) + (1 + Time.Window | Species),
 #                      #(1 + Time.Window*Day | Species)
 #                      data = VP.Window.60, family = "binomial", REML = F)
 #
-#VPmodel.60.3 <- glmmTMB(cbind(VP, VA) ~ Time.Window + poly(Day, 2) + Hab2 +
+#VPmodel.60.3 <- glmmTMB(cbind(VP, VA) ~ Time.Window + poly(Day, 2) + Hab1 +
 #                          (1 | Site) + (1 + Time.Window | Species),
 #                        #(1 + Day | Site) + (1 + Time.Window*Day | Species)
 #                        data = VP.Window.60, family = "binomial", REML = F)
@@ -545,7 +551,7 @@ runs.test(residuals(VPmodel.60)) # W = 0.99464, p-value = 0.6516, normal!
 
 
 # MODEL SELECTION ---------------------------------------------------------
-VPmodel.60 <- glmmTMB(cbind(VP, VA) ~ poly(Time.Window, 2)*Day + Hab2 + (1 | Site) + (1 | Species),
+VPmodel.60 <- glmmTMB(cbind(VP, VA) ~ poly(Time.Window, 2)*Day + Hab1 + (1 | Site) + (1 | Species),
                       data = VP.Window.60, family = "binomial", REML = F)
 
 options(na.action = "na.fail")
