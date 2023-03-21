@@ -39,6 +39,138 @@ ggplot(data = SR.Window.60) +
   facet_grid(~ Day)
 
 # SPECIES RICHNESS MODEL -------------------------------------------------------
+library(mgcv)
+
+# biologically relevant GAM structure
+SRgam.60 <- mgcv::gamm(SR ~ s(Minute, by = SiteDay) + Site + Day,
+                           family = "poisson",
+                           method = "REML",
+                           data = SR.Window.60)
+
+SRgam.60 <- mgcv::gamm(SR ~ s(Minute, by = SiteDay) + s(Day, bs = "re") + s(Site, bs = "re"),
+                       family = "poisson",
+                       method = "REML",
+                       data = SR.Window.60)
+
+# checking for autocorrelation issues
+performance::check_singularity(SRgam.60$gam)
+acf(SR.Window.60$SR) # raw data is autocorrelated
+acf(resid(SRgam.60$lme, type = "normalized")) # we have autocorrelated residuals
+pacf(resid(SRgam.60$lme, type = "normalized")) # we have autocorrelated residuals
+
+# adding in first order autoregressive covariance structure (AR1) to account for
+# residual autocorrelation
+SRgam.60.ar1 <- mgcv::gamm(SR ~ s(Minute, by = SiteDay) + s(Day, bs = "re") + s(Site, bs = "re"),
+                             correlation = corAR1(form = ~ Minute | SiteDay),
+                             family = "poisson",
+                             method = "REML",
+                             data = SR.Window.60)
+# another model structure that can work is putting both site and day as FEs
+
+#SRgam.60.ar1.2 <- mgcv::gamm(SR ~ s(Minute, by = Day) + Day + s(Site, bs = "re"),
+#                             correlation = corAR1(form = ~ Minute | SiteDay),
+#                             family = "poisson",
+#                             method = "REML",
+#                             data = SR.Window.60)
+
+# checking for autocorrelation issues
+performance::check_singularity(SRgam.60.ar1)
+acf(resid(SRgam.60.ar1$lme, type = "normalized")) # visually, we do not have autocorrelated data
+pacf(resid(SRgam.60.ar1$lme, type = "normalized")) # visually, we do not have autocorrelated data
+
+# checking model diagnostics
+par(mfrow=c(2,2))
+gam.check(SRgam.60.ar1$gam) # k values are too small, but we can't change them, residuals look great
+concurvity(SRgam.60.ar1$gam, full = TRUE) # no issues with concurvity
+concurvity(SRgam.60.ar1$gam, full = FALSE) # no issues with concurvity
+
+summary(SRgam.60.ar1$gam)
+# visualizing partial effects
+plot(SRgam.60.ar1.5$gam, shade = TRUE, shift = coef(SRgam.60.ar1$gam)[1],
+     trans = exp, pages = 1, all.terms = TRUE, rug = FALSE)
+
+
+options(na.action = "na.fail")
+d.out <- MuMIn::dredge(SRgam.60.ar1$gam)
+View(d.out)
+options(na.action = "na.omit")
+write.csv(d.out, "Outputs/tvp-model-selection.csv")
+
+
+# MODEL PREDICTION --------------------------------------------------------
+
+
+# predicting from the model
+predicted <- data.frame(predict(SRgam.60.ar1.5$gam, type = "response", se.fit = TRUE))
+SR.Window.60 <- cbind(SR.Window.60, predicted)
+
+
+
+ggplot(data = SR.Window.60) +
+  geom_point(mapping = aes(x = Minute, y = SR, color = Site)) +
+  geom_smooth(mapping = aes(x = Minute, y = fit + se.fit), se = FALSE, color = "black", linetype = 2) +
+  geom_smooth(mapping = aes(x = Minute, y = fit), color = "black", size = 1.1) +
+  geom_smooth(mapping = aes(x = Minute, y = fit - se.fit), se = FALSE, color = "black", linetype = 2) +
+  facet_grid(~ Day) +
+  theme_classic(base_size = 16) +
+  labs(x = "Minute", y = "Species richness") +
+  scale_color_brewer(palette = "Dark2") +
+  theme(axis.title.x = element_text(face = "bold"),
+        axis.title.y = element_text(face = "bold"),
+        axis.text.x = element_text(hjust = 0.5),
+        axis.text.y = element_text(hjust = 1),
+        legend.title = element_blank(),
+        legend.position = "none",
+        strip.background = element_blank(),
+        strip.text.x = element_text(face = "bold"),
+        strip.text.y = element_text(face = "bold"),
+        panel.spacing = unit(1, "lines"),
+        aspect.ratio = 0.8)
+
+
+
+
+
+
+
+
+
+
+
+
+
+ggplot(data = SR.Window.60) +
+  geom_point(mapping = aes(x = Minute, y = SR, color = Site)) +
+  geom_line(mapping = aes(x = Minute, y = fit + se.fit), linetype = 2) +
+  geom_line(mapping = aes(x = Minute, y = fit), size = 1.1) +
+  geom_line(mapping = aes(x = Minute, y = fit - se.fit), linetype = 2) +
+  facet_grid(Day ~ Site) +
+  theme_classic(base_size = 16) +
+  labs(x = "Minute", y = "Species richness") +
+  scale_color_brewer(palette = "Dark2") +
+  theme(axis.title.x = element_text(face = "bold"),
+        axis.title.y = element_text(face = "bold"),
+        axis.text.x = element_text(hjust = 0.5),
+        axis.text.y = element_text(hjust = 1),
+        legend.title = element_blank(),
+        legend.position = "none",
+        strip.background = element_blank(),
+        strip.text.x = element_text(face = "bold"),
+        strip.text.y = element_text(face = "bold"),
+        panel.spacing = unit(1, "lines"),
+        aspect.ratio = 0.8)
+
+
+
+
+
+
+
+
+
+
+
+
 
 SRmodel.60 <- glmmTMB(SR ~ (Time.Window^2)*Day + (1 | Site),
                       data = SR.Window.60, family = "poisson", REML = F)
@@ -92,7 +224,7 @@ car::Anova(SRmodel.60, type = 3)
 SRmodel.60.lag <- glmmTMB(SR ~ (Time.Window^2)*Day + lag1 + (1 | Site),
                           data = SR.Window.60.lag, family = "poisson", REML = F)
 SRmodel.60.lag.x <- glmmTMB(SR ~ (Time.Window^2)*Day + lag1,
-                          data = SR.Window.60.lag, family = "poisson", REML = F)
+                            data = SR.Window.60.lag, family = "poisson", REML = F)
 # model with site as an RE performs a lot better
 AIC(SRmodel.60.lag, SRmodel.60.lag.x) 
 
@@ -161,83 +293,6 @@ summary(SRmodel.60.ar1)
 performance::r2(SRmodel.60.ar1)
 VarCorr(SRmodel.60.ar1, condVar = TRUE)
 car::Anova(SRmodel.60.ar1, type = 3)
-
-
-
-
-
-
-
-
-
-
-
-
-
-# GAM ---------------------------------------------------------------------
-
-library(mgcv)
-SRgam.60.ar1 <- mgcv::gamm(SR ~ s(Minute, by = Day) + Day + s(Site, bs = "re"),
-           correlation = corAR1(form = ~ Minute | factor(SiteDay)),
-           family = "poisson",
-           method = "REML",
-           data = SR.Window.60)
-summary(SRgam.60.ar1$gam)
-
-performance::check_singularity(SRgam.60.ar1)
-acf(SR.Window.60$SR) # raw data is autocorrelated
-acf(resid(SRgam.60.ar1$lme, type = "normalized")) # visually, we do not have autocorrelated data
-pacf(resid(SRgam.60.ar1$lme, type = "normalized")) # visually, we do not have autocorrelated data
-runs.test(resid(SRgam.60.ar1$lme, type = "normalized")) # we do not have autocorrelated data
-lmtest::dwtest(SRgam.60.ar1$residuals) # we do not have autocorrelated data
-
-plot(SRgam.60.ar1$gam, shade = TRUE, rug = FALSE, trans = exp, pages = 1,
-     all.terms = TRUE)
-
-
-par(mfrow=c(2,2))
-gam.check(SRgam.60.ar1$gam)
-concurvity(SRgam.60.ar1$gam, full = TRUE) # no issues with concurvity
-concurvity(SRgam.60.ar1$gam, full = FALSE) # no issues with concurvity
-summary(SRgam.60.ar1$gam)
-
-options(na.action = "na.fail")
-# computes marginal and conditional R^2
-d.out <- MuMIn::dredge(SRmodel.60.ar1)
-#, extra = list("Rsq" = function(x){performance::r2(x)}))
-View(d.out)
-options(na.action = "na.omit")
-write.csv(d.out, "Outputs/sr-model-selection.csv")
-
-plot(SRgam.60.ar1$gam, shade = TRUE, rug = FALSE, shift = coef(SRgam.60.ar1$gam)[1], trans = exp, pages = 1,
-     all.terms = TRUE)
-
-
-
-
-plot(SRgam.60.ar1$gam, shade = TRUE, rug = FALSE, residuals = TRUE, trans = exp,
-     pch = 1, cex = 1, pages = 1, all.terms = FALSE)
-
-
-
-plot(SRgam.60.ar1, seWithMean = TRUE, shift = coef(SRgam.60.ar1)[1], pages = 1)
-
-acf(SR.Window.60$SR) # raw data is autocorrelated
-acf(residuals(SRgam.60.ar1)) # visually, we do not have autocorrelated data
-pacf(SRgam.60.ar1)
-pacf(residuals(SRgam.60.ar1)) # visually, we do not have autocorrelated data
-
-
-summary(SRgam.60.ar1)
-plot(SRgam.60.ar1, resid = TRUE)
-plot(SRgam.60.ar1, se = TRUE)
-
-gam.check(SRgam.60.ar1)
-
-plot(SRgam.60.ar1$)
-
-
-
 
 
 
