@@ -42,12 +42,7 @@ ggplot(data = SR.Window.60) +
 library(mgcv)
 
 # biologically relevant GAM structure
-SRgam.60 <- mgcv::gamm(SR ~ s(Minute, by = SiteDay) + Site + Day,
-                           family = "poisson",
-                           method = "REML",
-                           data = SR.Window.60)
-
-SRgam.60 <- mgcv::gamm(SR ~ s(Minute, by = SiteDay) + s(Day, bs = "re") + s(Site, bs = "re"),
+SRgam.60 <- mgcv::gamm(SR ~ s(Minute, by = SiteDay) + s(Site, bs = "re") + s(Day, bs = "re"),
                        family = "poisson",
                        method = "REML",
                        data = SR.Window.60)
@@ -60,17 +55,12 @@ pacf(resid(SRgam.60$lme, type = "normalized")) # we have autocorrelated residual
 
 # adding in first order autoregressive covariance structure (AR1) to account for
 # residual autocorrelation
-SRgam.60.ar1 <- mgcv::gamm(SR ~ s(Minute, by = SiteDay) + s(Day, bs = "re") + s(Site, bs = "re"),
-                             correlation = corAR1(form = ~ Minute | SiteDay),
-                             family = "poisson",
-                             method = "REML",
-                             data = SR.Window.60)
-
-SRgam.60.ar1.2 <- mgcv::gamm(SR ~ s(Minute, by = Day) + Day + s(Site, bs = "re"),
-#                             correlation = corAR1(form = ~ Minute | SiteDay),
-#                             family = "poisson",
-#                             method = "REML",
-#                             data = SR.Window.60)
+SRgam.60.ar1 <- mgcv::gamm(SR ~ s(Minute, by = SiteDay) + s(Site, bs = "re") + s(Day, bs = "re"),
+                           correlation = corAR1(form = ~ Minute | SiteDay),
+                           family = "poisson",
+                           method = "REML",
+                           data = SR.Window.60)
+# another reasonable model structure is to include site and day as FEs
 
 # checking for autocorrelation issues
 performance::check_singularity(SRgam.60.ar1)
@@ -83,14 +73,16 @@ gam.check(SRgam.60.ar1$gam) # k values are too small, but we can't change them, 
 concurvity(SRgam.60.ar1$gam, full = TRUE) # no issues with concurvity
 concurvity(SRgam.60.ar1$gam, full = FALSE) # no issues with concurvity
 
-summary(SRgam.60.ar1$gam)
+summary(SRgam.60.ar1.3$gam)
+anova.gam(SRgam.60.ar1.2$gam)
 # visualizing partial effects
-plot(SRgam.60.ar1.5$gam, shade = TRUE, shift = coef(SRgam.60.ar1$gam)[1],
+plot(SRgam.60.ar1$gam, shade = TRUE, shift = coef(SRgam.60.ar1$gam)[1],
      trans = exp, pages = 1, all.terms = TRUE, rug = FALSE)
 
+# MODEL SELECTION ---------------------------------------------------------
 
 options(na.action = "na.fail")
-d.out <- MuMIn::dredge(SRgam.60.ar1$gam)
+d.out <- MuMIn::dredge(TVPgam.60.ar1$gam)
 View(d.out)
 options(na.action = "na.omit")
 write.csv(d.out, "Outputs/tvp-model-selection.csv")
@@ -100,19 +92,20 @@ write.csv(d.out, "Outputs/tvp-model-selection.csv")
 
 
 # predicting from the model
-predicted <- data.frame(predict(SRgam.60.ar1.5$gam, type = "response", se.fit = TRUE))
-SR.Window.60 <- cbind(SR.Window.60, predicted)
+predicted <- data.frame(predict(TVPgam.60.ar1$gam, type = "response", se.fit = TRUE))
+TVP.Window.60 <- cbind(TVP.Window.60, predicted)
 
 
 
-ggplot(data = SR.Window.60) +
-  geom_point(mapping = aes(x = Minute, y = SR, color = Site)) +
+# smoothing predictions by day
+ggplot(data = TVP.Window.60) +
+  geom_point(mapping = aes(x = Minute, y = TVP, color = Site)) +
   geom_smooth(mapping = aes(x = Minute, y = fit + se.fit), se = FALSE, color = "black", linetype = 2) +
   geom_smooth(mapping = aes(x = Minute, y = fit), color = "black", size = 1.1) +
   geom_smooth(mapping = aes(x = Minute, y = fit - se.fit), se = FALSE, color = "black", linetype = 2) +
   facet_grid(~ Day) +
   theme_classic(base_size = 16) +
-  labs(x = "Minute", y = "Species richness") +
+  labs(x = "Minute", y = "Total Vocal Prevalence") +
   scale_color_brewer(palette = "Dark2") +
   theme(axis.title.x = element_text(face = "bold"),
         axis.title.y = element_text(face = "bold"),
@@ -126,26 +119,15 @@ ggplot(data = SR.Window.60) +
         panel.spacing = unit(1, "lines"),
         aspect.ratio = 0.8)
 
-
-
-
-
-
-
-
-
-
-
-
-
-ggplot(data = SR.Window.60) +
-  geom_point(mapping = aes(x = Minute, y = SR, color = Site)) +
+# predictions across days and sites
+ggplot(data = TVP.Window.60) +
+  geom_point(mapping = aes(x = Minute, y = TVP, color = Site)) +
   geom_line(mapping = aes(x = Minute, y = fit + se.fit), linetype = 2) +
   geom_line(mapping = aes(x = Minute, y = fit), size = 1.1) +
   geom_line(mapping = aes(x = Minute, y = fit - se.fit), linetype = 2) +
   facet_grid(Day ~ Site) +
   theme_classic(base_size = 16) +
-  labs(x = "Minute", y = "Species richness") +
+  labs(x = "Minute", y = "Total Vocal Prevalence") +
   scale_color_brewer(palette = "Dark2") +
   theme(axis.title.x = element_text(face = "bold"),
         axis.title.y = element_text(face = "bold"),
@@ -312,6 +294,38 @@ TVP.Window.60 <- read.csv("Outputs/TVP.Window.60") %>%
          Hab1 = as.factor(Hab1),
          SiteDay = as.factor(str_c(Site, Day))) 
 
+TVPgam.60 <- mgcv::gamm(TVP ~ s(Minute, by = Day) + Day + s(Site, bs = "re"),
+                        family = "poisson",
+                        method = "REML",
+                        data = TVP.Window.60)
+
+# checking for autocorrelation issues
+performance::check_singularity(TVPgam.60.ar1)
+acf(resid(TVPgam.60$lme, type = "normalized")) # visually, we do not have autocorrelated data
+pacf(resid(TVPgam.60$lme, type = "normalized")) # visually, we do not have autocorrelated data
+
+TVPgam.60.ar1 <- mgcv::gamm(TVP ~ s(Minute, by = Day) + Day + s(Site, bs = "re"),
+                            correlation = corAR1(form = ~ Minute | SiteDay),
+                            family = "poisson",
+                            method = "REML",
+                            data = TVP.Window.60)
+
+# checking for autocorrelation issues
+performance::check_singularity(TVPgam.60.ar1)
+acf(resid(TVPgam.60.ar1$lme, type = "normalized")) # visually, we do not have autocorrelated data
+pacf(resid(TVPgam.60.ar1$lme, type = "normalized")) # visually, we do not have autocorrelated data
+
+# checking model diagnostics
+par(mfrow=c(2,2))
+gam.check(TVPgam.60.ar1$gam) # k values are too small, but we can't change them, residuals look great
+concurvity(TVPgam.60.ar1$gam, full = TRUE) # no issues with concurvity
+concurvity(TVPgam.60.ar1$gam, full = FALSE) # no issues with concurvity
+
+summary(TVPgam.60.ar1$gam)
+# visualizing partial effects
+plot(TVPgam.60.ar1$gam, shade = TRUE, shift = coef(TVPgam.60.ar1$gam)[1],
+     trans = exp, pages = 1, all.terms = TRUE, rug = FALSE)
+
 # OUTLIERS & NORMALITY OF RESPONSE VARIABLES -----------------------------------
 # This distribution is to be expected when dealing with count data/ many zero counts
 ggdensity(TVP.Window.60$TVP, xlab = "Total Vocal Prevalence")
@@ -357,7 +371,7 @@ TVP.Window.60.lag <- data.frame(TVP.Window.60, resid.mod = residuals(TVPmodel.60
   na.omit()
 
 TVPmodel.60.lag <- glmmTMB(TVP ~ (Time.Window^2)*Day + lag1 + (1 | Site),
-                          data = TVP.Window.60.lag, family = "poisson", REML = F)
+                           data = TVP.Window.60.lag, family = "poisson", REML = F)
 
 performance::check_singularity(TVPmodel.60.lag)
 acf(TVP.Window.60$TVP) # raw data is autocorrelated
@@ -429,7 +443,7 @@ write.csv(d.out, "Outputs/tvp-model-selection.csv")
 
 # 1st place model by a long-shot (R2 = 0.87, wi = 73%)
 topTVPmodel.60 <- glmmTMB(TVP ~ poly(Time.Window, 2)*Day + (1 | Site),
-                      data = TVP.Window.60, family = "poisson", REML = F)
+                          data = TVP.Window.60, family = "poisson", REML = F)
 
 summary(topTVPmodel.60)
 as.data.frame(confint(topTVPmodel.60)) %>% 
@@ -542,14 +556,14 @@ VPmodel.60 <- glmmTMB(cbind(VP, VA) ~ poly(Time.Window, 2)*Day + Hab1 + (1 | Sit
                       data = VP.Window.60, family = "binomial", REML = F)
 
 VPmodel.60.1 <- glmmTMB(cbind(VP, VA) ~ poly(Time.Window, 2)*Day + Site + (1 | Species),
-                      data = VP.Window.60, family = "binomial", REML = F)
+                        data = VP.Window.60, family = "binomial", REML = F)
 
 # won't converge
 #VPmodel.60.2 <- glmmTMB(cbind(VP, VA) ~ poly(Time.Window, 2)*Day + Hab1 + (1 + Day | Site) + (1 + Time.Window | Species),
 #                        data = VP.Window.60, family = "binomial", REML = F)
 
 VPmodel.60.3 <- glmmTMB(cbind(VP, VA) ~ poly(Time.Window, 2)*Day + Hab1 + (1 | Site) + (1 + Time.Window | Species),
-                      data = VP.Window.60, family = "binomial", REML = F)
+                        data = VP.Window.60, family = "binomial", REML = F)
 
 VPmodel.60.4 <- glmmTMB(cbind(VP, VA) ~ poly(Time.Window, 2) + Day + Hab1 + (1 | Site) + (1 + Time.Window | Species),
                         data = VP.Window.60, family = "binomial", REML = F)
