@@ -10,7 +10,6 @@ library(ggpubr)
 library(mgcv)
 library(MuMIn)
 
-
 # SPECIES RICHNESS --------------------------------------------------------
 
 SR.Total <- read.csv("Outputs/SR.Total")
@@ -50,7 +49,7 @@ pacf(resid(SRgam.60$lme, type = "normalized"))
 
 # adding in first order autoregressive covariance structure (AR1) to account for
 # residual autocorrelation
-SRgam.60.ar1 <- mgcv::gamm(SR ~ s(Minute, by = SiteDay) + s(Site, bs = "re") + s(Day, bs = "re"),
+SRgam.60.ar1 <- mgcv::gamm(SR ~ s(Minute, by = SiteDay) + s(Day, bs = "re") + s(Site, bs = "re") ,
                              correlation = corAR1(form = ~ Minute | SiteDay),
                              family = "poisson",
                              method = "REML",
@@ -150,19 +149,20 @@ ggplot(data = TVP.Window.60) +
 
 # TOTAL VOCAL PREVALENCE MODEL -------------------------------------------------
 
-TVPgam.60 <- mgcv::gamm(TVP ~ s(Minute, by = SiteDay) + s(Site, bs = "re") + s(Day, bs = "re"),
+TVPgam.60 <- mgcv::gamm(TVP ~ s(Minute, by = SiteDay) + s(Day, bs = "re") + s(Site, bs = "re"),
                         family = "poisson",
                         method = "REML",
                         data = TVP.Window.60)
 
 # checking for autocorrelation issues
+par(mfrow=c(1,1))
 performance::check_singularity(TVPgam.60$gam)
 acf(resid(TVPgam.60$lme, type = "normalized")) # we have strong autocorrelation in our residuals
 pacf(resid(TVPgam.60$lme, type = "normalized"))
 
 # adding in first order autoregressive covariance structure (AR1) to account for
 # residual autocorrelation
-TVPgam.60.ar1 <- mgcv::gamm(TVP ~ s(Minute, by = SiteDay) + s(Day, bs = "re") + s(Site, bs = "re"),
+TVPgam.60.ar1 <- mgcv::gamm(TVP ~ s(Minute, by = SiteDay) + s(Site, bs = "re") + s(Day, bs = "re"),
                         correlation = corAR1(form = ~ Minute | SiteDay),
                         family = "poisson",
                         method = "REML",

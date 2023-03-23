@@ -15,11 +15,27 @@ select <- dplyr::select
 # pulling in habitat information and community metrics calculated in Python
 SiteData <- read.csv("Spreadsheets/Site-Data.csv") %>%
   select(Site, Day, Hab1, Hab2, Hab3, Edge.Distance) %>% 
+  # converting site and day names to meaningful numbers
+  mutate(Day = if_else(Day == "A", 1,
+                       if_else(Day == "B", 2, 3)),
+         Site = if_else(Site == 1, "A",
+                       if_else(Site == 2, "B", 
+                               if_else(Site == 4, "C",
+                                       if_else(Site == 5, "D", 
+                                               if_else(Site == 6, "E", "F")))))) %>% 
   mutate(Day = as.factor(Day), Site = as.factor(Site))
 
 # pulling in raw annotations from Raven Pro 1.5
 Annotations <- read.csv("Spreadsheets/All-Annotations.csv") %>% 
   rename(Start = Begin.Time..s., End = End.Time..s., Species = species) %>% 
+  # converting site and day names to meaningful numbers
+  mutate(Day = if_else(Day == "A", 1,
+                       if_else(Day == "B", 2, 3)),
+         Site = if_else(Site == 1, "A",
+                        if_else(Site == 2, "B", 
+                                if_else(Site == 4, "C",
+                                        if_else(Site == 5, "D", 
+                                                if_else(Site == 6, "E", "F")))))) %>% 
   mutate(Day = as.factor(Day), Site = as.factor(Site))
  
 # SPECIES RICHNESS --------------------------------------------------------
