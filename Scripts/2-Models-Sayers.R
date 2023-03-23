@@ -4,6 +4,7 @@
 
 # script designed for data visualizations and model fitting
 
+library(tidyverse)
 library(ggplot2)
 library(stringr)
 library(ggpubr)
@@ -157,13 +158,14 @@ TVPgam.60 <- mgcv::gamm(TVP ~ s(Minute, by = SiteDay) + s(Day, bs = "re") + s(Si
 # checking for autocorrelation issues
 par(mfrow=c(1,1))
 performance::check_singularity(TVPgam.60$gam)
+acf(resid(TVPgam.60$gam)) # we have strong autocorrelation in our residuals
 acf(resid(TVPgam.60$lme, type = "normalized")) # we have strong autocorrelation in our residuals
 pacf(resid(TVPgam.60$lme, type = "normalized"))
 
 # adding in first order autoregressive covariance structure (AR1) to account for
 # residual autocorrelation
-TVPgam.60.ar1 <- mgcv::gamm(TVP ~ s(Minute, by = SiteDay) + s(Site, bs = "re") + s(Day, bs = "re"),
-                        correlation = corAR1(form = ~ Minute | SiteDay),
+TVPgam.60.ar1 <- mgcv::gamm(TVP ~ s(Minute, by = SiteDay) + s(Day, bs = "re") + s(Site, bs = "re"),
+                        correlation = corAR1(form = ~ Time.Window | SiteDay),
                         family = "poisson",
                         method = "REML",
                         data = TVP.Window.60)
