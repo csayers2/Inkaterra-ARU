@@ -42,6 +42,7 @@ SRgam.60 <- mgcv::gamm(SR ~ s(Minute, by = SiteDay) + s(Site, bs = "re") + s(Day
                        data = SR.Window.60)
 
 # checking for autocorrelation issues
+par(mfrow=c(1,1))
 performance::check_singularity(SRgam.60$gam)
 acf(SR.Window.60$SR) # raw data is autocorrelated
 acf(resid(SRgam.60$lme, type = "normalized")) # we have mild autocorrelation in the residuals
@@ -79,10 +80,13 @@ plot(SRgam.60.ar1$gam, shade = TRUE, shift = coef(SRgam.60.ar1$gam)[1],
 predicted.sr <- data.frame(predict(SRgam.60.ar1$gam, type = "response", se.fit = TRUE))
 SR.Window.60 <- cbind(SR.Window.60, predicted.sr)
 
+write.csv(SR.Window.60, "Outputs/SR.Window.60.pred")
+
 # smoothing predictions by day
 ggplot(data = SR.Window.60) +
   geom_point(mapping = aes(x = Minute, y = SR, color = Site)) +
   geom_smooth(mapping = aes(x = Minute, y = fit + se.fit), se = FALSE, color = "black", linetype = 2) +
+  geom_smooth(mapping = aes(x = Minute, y = fit, color = Site), se = FALSE, size = 1.1) +
   geom_smooth(mapping = aes(x = Minute, y = fit), color = "black", size = 1.1, se = FALSE) +
   geom_smooth(mapping = aes(x = Minute, y = fit - se.fit), se = FALSE, color = "black", linetype = 2) +
   facet_grid(~ Day) +
@@ -186,6 +190,8 @@ plot(TVPgam.60.ar1$gam, shade = TRUE, shift = coef(TVPgam.60.ar1$gam)[1],
 # predicting from the model
 predicted.tvp <- data.frame(predict(TVPgam.60.ar1$gam, type = "response", se.fit = TRUE))
 TVP.Window.60 <- cbind(TVP.Window.60, predicted.tvp)
+
+write.csv(TVP.Window.60, "Outputs/TVP.Window.60.pred")
 
 # smoothing predictions by day
 ggplot(data = TVP.Window.60) +
