@@ -138,8 +138,7 @@ ggplot(data = SR.Window.60) +
 
 ggview(device = "jpeg", units = "in", dpi = 1200, width = 12, height = 6)
 
-ggsave("Figures/Fig1-SR.jpg",
-       dpi = 1200, width = 12, height = 6)
+ggsave("Figures/Fig1-SR.jpg", dpi = 1200, width = 12, height = 6)
 
 
 # TOTAL VOCAL PREVALENCE --------------------------------------------------------
@@ -263,5 +262,4 @@ ggplot(data = TVP.Window.60) +
 
 ggview(device = "jpeg", units = "in", dpi = 1200, width = 12, height = 6)
 
-ggsave("Figures/Fig2-TVP.jpg",
-       dpi = 1200, width = 12, height = 6)
+ggsave("Figures/Fig2-TVP.jpg", dpi = 1200, width = 12, height = 6)
