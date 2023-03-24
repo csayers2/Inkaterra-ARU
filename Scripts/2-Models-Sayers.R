@@ -10,13 +10,14 @@ library(stringr)
 library(ggpubr)
 library(mgcv)
 library(MuMIn)
+library(ggview)
 
 # SPECIES RICHNESS --------------------------------------------------------
 
 SR.Total <- read.csv("Outputs/SR.Total")
 SR.Window.60 <- read.csv("Outputs/SR.Window.60") %>% 
   mutate(Minute = Time.Window/60,
-         fTime.Window = factor(Time.Window),
+         fTime.Window = as.factor(Time.Window),
          Site = as.factor(Site),
          Day = as.factor(Day),
          Hab1 = as.factor(Hab1),
@@ -50,7 +51,7 @@ pacf(resid(SRgam.60$lme, type = "normalized"))
 
 # adding in first order autoregressive covariance structure (AR1) to account for
 # residual autocorrelation
-SRgam.60.ar1 <- mgcv::gamm(SR ~ s(Minute, by = SiteDay) + s(Day, bs = "re") + s(Site, bs = "re") ,
+SRgam.60.ar1 <- mgcv::gamm(SR ~ s(Minute, by = SiteDay) + s(Site, bs = "re") + s(Day, bs = "re"),
                              correlation = corAR1(form = ~ Minute | SiteDay),
                              family = "poisson",
                              method = "REML",
@@ -78,7 +79,15 @@ plot(SRgam.60.ar1$gam, shade = TRUE, shift = coef(SRgam.60.ar1$gam)[1],
 
 # predicting from the model
 predicted.sr <- data.frame(predict(SRgam.60.ar1$gam, type = "response", se.fit = TRUE))
-SR.Window.60 <- cbind(SR.Window.60, predicted.sr)
+SR.Window.60 <- cbind(SR.Window.60, predicted.sr) %>% 
+  # converting site and day names to meaningful numbers
+  mutate(Day = if_else(Day == "A", 1,
+                       if_else(Day == "B", 2, 3)),
+         Site = if_else(Site == 1, "A",
+                        if_else(Site == 2, "B", 
+                                if_else(Site == 4, "C",
+                                        if_else(Site == 5, "D", 
+                                                if_else(Site == 6, "E", "F"))))))
 
 write.csv(SR.Window.60, "Outputs/SR.Window.60.pred")
 
@@ -127,6 +136,11 @@ ggplot(data = SR.Window.60) +
         panel.spacing = unit(1, "lines"),
         aspect.ratio = 0.8)
 
+ggview(device = "jpeg", units = "in", dpi = 1200, width = 12, height = 6)
+
+ggsave("Figures/Fig1-SR.jpg",
+       dpi = 1200, width = 12, height = 6)
+
 
 # TOTAL VOCAL PREVALENCE --------------------------------------------------------
 
@@ -150,7 +164,7 @@ ggplot(data = TVP.Window.60) +
 
 # TOTAL VOCAL PREVALENCE MODEL -------------------------------------------------
 
-TVPgam.60 <- mgcv::gamm(TVP ~ s(Minute, by = SiteDay) + s(Day, bs = "re") + s(Site, bs = "re"),
+TVPgam.60 <- mgcv::gamm(TVP ~ s(Minute, by = SiteDay) + s(Site, bs = "re") + s(Day, bs = "re"),
                         family = "poisson",
                         method = "REML",
                         data = TVP.Window.60)
@@ -165,7 +179,7 @@ pacf(resid(TVPgam.60$lme, type = "normalized"))
 # adding in first order autoregressive covariance structure (AR1) to account for
 # residual autocorrelation
 TVPgam.60.ar1 <- mgcv::gamm(TVP ~ s(Minute, by = SiteDay) + s(Day, bs = "re") + s(Site, bs = "re"),
-                        correlation = corAR1(form = ~ Time.Window | SiteDay),
+                        correlation = corAR1(form = ~ Minute | SiteDay),
                         family = "poisson",
                         method = "REML",
                         data = TVP.Window.60)
@@ -191,7 +205,15 @@ plot(TVPgam.60.ar1$gam, shade = TRUE, shift = coef(TVPgam.60.ar1$gam)[1],
 
 # predicting from the model
 predicted.tvp <- data.frame(predict(TVPgam.60.ar1$gam, type = "response", se.fit = TRUE))
-TVP.Window.60 <- cbind(TVP.Window.60, predicted.tvp)
+TVP.Window.60 <- cbind(TVP.Window.60, predicted.tvp) %>% 
+  # converting site and day names to meaningful numbers
+  mutate(Day = if_else(Day == "A", 1,
+                       if_else(Day == "B", 2, 3)),
+         Site = if_else(Site == 1, "A",
+                        if_else(Site == 2, "B", 
+                                if_else(Site == 4, "C",
+                                        if_else(Site == 5, "D", 
+                                                if_else(Site == 6, "E", "F"))))))
 
 write.csv(TVP.Window.60, "Outputs/TVP.Window.60.pred")
 
@@ -238,3 +260,8 @@ ggplot(data = TVP.Window.60) +
         strip.text.y = element_text(face = "bold"),
         panel.spacing = unit(1, "lines"),
         aspect.ratio = 0.8)
+
+ggview(device = "jpeg", units = "in", dpi = 1200, width = 12, height = 6)
+
+ggsave("Figures/Fig2-TVP.jpg",
+       dpi = 1200, width = 12, height = 6)
