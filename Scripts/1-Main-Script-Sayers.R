@@ -218,6 +218,16 @@ VP.Window.60 <- VP.Window.10 %>%
 
 write.csv(VP.Window.60, "Outputs/VP.Window.60")
 
+# creating species "heat map" for the supplemental materials
+VP.60.Time.Series.spp <- VP.Window.60 %>%
+  mutate(Minute = Time.Window/60) %>% 
+  #select(Site, Day, Species, Minute, VP) %>%
+  group_by(Species, Minute) %>% 
+  summarize(TVP = sum(VP))
+  pivot_wider(names_from = Minute, values_from = TVP, values_fill = 0)
+
+write.csv(VP.60.Time.Series.spp, "Outputs/VP.60.Time.Series.spp")
+
 # total encounters per species for each site-day = sum of VP across 10 s windows
 #TE.Window.10.spp <- VP.Window.10 %>% 
 #  group_by(Site, Day, Species) %>% 

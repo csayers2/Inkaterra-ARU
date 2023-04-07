@@ -75,31 +75,47 @@ anova.gam(SRgam.60.ar1$gam)
 plot(SRgam.60.ar1$gam, shade = TRUE, shift = coef(SRgam.60.ar1$gam)[1],
      trans = exp, pages = 1, all.terms = TRUE, rug = FALSE)
 
+
+# creating a second model to smooth minute by day effects
+SRgam.60.ar1.day <- mgcv::gamm(SR ~ s(Minute, by = Day) + s(Site, bs = "re") + s(Day, bs = "re"),
+                               correlation = corAR1(form = ~ Minute | SiteDay),
+                               family = "poisson",
+                               method = "REML",
+                               data = SR.Window.60)
+summary(SRgam.60.ar1.day$gam)
+anova.gam(SRgam.60.ar1.day$gam)
+# visualizing partial effects
+plot(SRgam.60.ar1.day$gam, shade = TRUE, shift = coef(SRgam.60.ar1$gam)[1],
+     trans = exp, pages = 1, all.terms = TRUE, rug = FALSE)
+
+
 # MODEL PREDICTION --------------------------------------------------------
 
 # predicting from the model
 predicted.sr <- data.frame(predict(SRgam.60.ar1$gam, type = "response", se.fit = TRUE))
-SR.Window.60 <- cbind(SR.Window.60, predicted.sr) %>% 
+predicted.sr.day <- data.frame(predict(SRgam.60.ar1.day$gam, type = "response", se.fit = TRUE)) %>% 
+  rename(fit.day = fit, se.fit.day = se.fit)
+SR.Window.60 <- cbind(SR.Window.60, predicted.sr, predicted.sr.day) %>% 
   # converting site and day names to meaningful numbers
-  mutate(Day = if_else(Day == "A", 1,
-                       if_else(Day == "B", 2, 3)),
-         Site = if_else(Site == 1, "A",
-                        if_else(Site == 2, "B", 
-                                if_else(Site == 4, "C",
-                                        if_else(Site == 5, "D", 
-                                                if_else(Site == 6, "E", "F"))))))
+  mutate(Day = if_else(Day == "A", "Day 1",
+                       if_else(Day == "B", "Day 2", "Day 3")),
+         Site = if_else(Site == 1, "Site A",
+                        if_else(Site == 2, "Site B", 
+                                if_else(Site == 4, "Site C",
+                                        if_else(Site == 5, "Site D", 
+                                                if_else(Site == 6, "Site E", "Site F"))))))
 
 write.csv(SR.Window.60, "Outputs/SR.Window.60.pred")
 
 # smoothing predictions by day
 ggplot(data = SR.Window.60) +
-  geom_point(mapping = aes(x = Minute, y = SR, color = Site)) +
-  geom_smooth(mapping = aes(x = Minute, y = fit + se.fit), se = FALSE, color = "black", linetype = 2) +
-  geom_smooth(mapping = aes(x = Minute, y = fit, color = Site), se = FALSE, size = 1.1) +
-  geom_smooth(mapping = aes(x = Minute, y = fit), color = "black", size = 1.1, se = FALSE) +
-  geom_smooth(mapping = aes(x = Minute, y = fit - se.fit), se = FALSE, color = "black", linetype = 2) +
+  #geom_point(mapping = aes(x = Minute, y = SR, color = Site)) +
+  geom_line(mapping = aes(x = Minute, y = fit, color = Site)) +
+  geom_smooth(mapping = aes(x = Minute, y = fit.day + se.fit.day), se = FALSE, color = "black", linetype = 2) +
+  geom_smooth(mapping = aes(x = Minute, y = fit.day), color = "black", size = 1.1, se = FALSE) +
+  geom_smooth(mapping = aes(x = Minute, y = fit.day - se.fit.day), se = FALSE, color = "black", linetype = 2) +
   facet_grid(~ Day) +
-  theme_classic(base_size = 16) +
+  theme_bw(base_size = 16) +
   labs(x = "Minute", y = "Species Richness") +
   scale_color_brewer(palette = "Dark2") +
   theme(axis.title.x = element_text(face = "bold"),
@@ -120,8 +136,8 @@ ggplot(data = SR.Window.60) +
   geom_line(mapping = aes(x = Minute, y = fit + se.fit), linetype = 2) +
   geom_line(mapping = aes(x = Minute, y = fit), size = 1.1) +
   geom_line(mapping = aes(x = Minute, y = fit - se.fit), linetype = 2) +
-  facet_grid(Day ~ Site) +
-  theme_classic(base_size = 16) +
+  facet_grid(Site ~ Day) +
+  theme_bw(base_size = 16) +
   labs(x = "Minute", y = "Species Richness") +
   scale_color_brewer(palette = "Dark2") +
   theme(axis.title.x = element_text(face = "bold"),
@@ -136,9 +152,9 @@ ggplot(data = SR.Window.60) +
         panel.spacing = unit(1, "lines"),
         aspect.ratio = 0.8)
 
-ggview(device = "jpeg", units = "in", dpi = 1200, width = 12, height = 6)
+ggview(device = "jpeg", units = "in", dpi = 1200, width = 6, height = 12)
 
-ggsave("Figures/Fig1-SR.jpg", dpi = 1200, width = 12, height = 6)
+ggsave("Figures/Fig1-SR.jpg", dpi = 1200, width = 6, height = 12)
 
 
 # TOTAL VOCAL PREVALENCE --------------------------------------------------------
@@ -200,30 +216,46 @@ anova.gam(TVPgam.60.ar1$gam)
 plot(TVPgam.60.ar1$gam, shade = TRUE, shift = coef(TVPgam.60.ar1$gam)[1],
      trans = exp, pages = 1, all.terms = TRUE, rug = FALSE)
 
+# creating a second model to smooth minute by day effects
+TVPgam.60.ar1.day <- mgcv::gamm(TVP ~ s(Minute, by = Day) + s(Site, bs = "re") + s(Day, bs = "re"),
+                               correlation = corAR1(form = ~ Minute | SiteDay),
+                               family = "poisson",
+                               method = "REML",
+                               data = TVP.Window.60)
+summary(TVPgam.60.ar1.day$gam)
+anova.gam(TVPgam.60.ar1.day$gam)
+# visualizing partial effects
+plot(TVPgam.60.ar1.day$gam, shade = TRUE, shift = coef(TVPgam.60.ar1$gam)[1],
+     trans = exp, pages = 1, all.terms = TRUE, rug = FALSE)
+
+
 # MODEL PREDICTION --------------------------------------------------------
 
 # predicting from the model
 predicted.tvp <- data.frame(predict(TVPgam.60.ar1$gam, type = "response", se.fit = TRUE))
-TVP.Window.60 <- cbind(TVP.Window.60, predicted.tvp) %>% 
+predicted.tvp.day <- data.frame(predict(TVPgam.60.ar1.day$gam, type = "response", se.fit = TRUE)) %>% 
+  rename(fit.day = fit, se.fit.day = se.fit)
+TVP.Window.60 <- cbind(TVP.Window.60, predicted.tvp, predicted.tvp.day) %>% 
   # converting site and day names to meaningful numbers
-  mutate(Day = if_else(Day == "A", 1,
-                       if_else(Day == "B", 2, 3)),
-         Site = if_else(Site == 1, "A",
-                        if_else(Site == 2, "B", 
-                                if_else(Site == 4, "C",
-                                        if_else(Site == 5, "D", 
-                                                if_else(Site == 6, "E", "F"))))))
+  mutate(Day = if_else(Day == "A", "Day 1",
+                       if_else(Day == "B", "Day 2", "Day 3")),
+         Site = if_else(Site == 1, "Site A",
+                        if_else(Site == 2, "Site B", 
+                                if_else(Site == 4, "Site C",
+                                        if_else(Site == 5, "Site D", 
+                                                if_else(Site == 6, "Site E", "Site F"))))))
 
 write.csv(TVP.Window.60, "Outputs/TVP.Window.60.pred")
 
 # smoothing predictions by day
 ggplot(data = TVP.Window.60) +
-  geom_point(mapping = aes(x = Minute, y = TVP, color = Site)) +
-  geom_smooth(mapping = aes(x = Minute, y = fit + se.fit), se = FALSE, color = "black", linetype = 2) +
-  geom_smooth(mapping = aes(x = Minute, y = fit), color = "black", se = FALSE, size = 1.1) +
-  geom_smooth(mapping = aes(x = Minute, y = fit - se.fit), se = FALSE, color = "black", linetype = 2) +
+  #geom_point(mapping = aes(x = Minute, y = TVP, color = Site)) +
+  geom_line(mapping = aes(x = Minute, y = fit, color = Site)) +
+  geom_smooth(mapping = aes(x = Minute, y = fit.day + se.fit.day), se = FALSE, color = "black", linetype = 2) +
+  geom_smooth(mapping = aes(x = Minute, y = fit.day), color = "black", se = FALSE, size = 1.1) +
+  geom_smooth(mapping = aes(x = Minute, y = fit.day - se.fit.day), se = FALSE, color = "black", linetype = 2) +
   facet_grid(~ Day) +
-  theme_classic(base_size = 16) +
+  theme_bw(base_size = 16) +
   labs(x = "Minute", y = "Total Vocal Prevalence") +
   scale_color_brewer(palette = "Dark2") +
   theme(axis.title.x = element_text(face = "bold"),
@@ -244,8 +276,8 @@ ggplot(data = TVP.Window.60) +
   geom_line(mapping = aes(x = Minute, y = fit + se.fit), linetype = 2) +
   geom_line(mapping = aes(x = Minute, y = fit), size = 1.1) +
   geom_line(mapping = aes(x = Minute, y = fit - se.fit), linetype = 2) +
-  facet_grid(Day ~ Site) +
-  theme_classic(base_size = 16) +
+  facet_grid(Site ~ Day) +
+  theme_bw(base_size = 16) +
   labs(x = "Minute", y = "Total Vocal Prevalence") +
   scale_color_brewer(palette = "Dark2") +
   theme(axis.title.x = element_text(face = "bold"),
@@ -260,6 +292,6 @@ ggplot(data = TVP.Window.60) +
         panel.spacing = unit(1, "lines"),
         aspect.ratio = 0.8)
 
-ggview(device = "jpeg", units = "in", dpi = 1200, width = 12, height = 6)
+ggview(device = "jpeg", units = "in", dpi = 1200, width = 6, height = 12)
 
-ggsave("Figures/Fig2-TVP.jpg", dpi = 1200, width = 12, height = 6)
+ggsave("Figures/Fig2-TVP.jpg", dpi = 1200, width = 6, height = 12)
