@@ -1,6 +1,6 @@
 
 # Chris Sayers
-# updated March 21, 2023
+# updated April 9, 2023
 
 # script designed for data visualizations and model fitting
 
@@ -295,3 +295,122 @@ ggplot(data = TVP.Window.60) +
 ggview(device = "jpeg", units = "in", dpi = 1200, width = 6, height = 12)
 
 ggsave("Figures/Fig2-TVP.jpg", dpi = 1200, width = 6, height = 12)
+
+
+# SPECIES VOCAL PREVALENCE -----------------------------------------------------
+
+VP.Window.60 <- read.csv("Outputs/VP.Window.60") %>% 
+  mutate(Minute = Time.Window/60,
+         Site = as.factor(Site),
+         Day = as.factor(Day),
+         Hab1 = as.factor(Hab1),
+         SiteDay = as.factor(str_c(Site, Day))) 
+
+# OUTLIERS & NORMALITY OF RESPONSE VARIABLES -----------------------------------
+ggdensity(VP.Window.60$VP, xlab = "Vocal Prevalence")
+gghistogram(VP.Window.60$VP, xlab = "Vocal Prevalence")
+ggqqplot(VP.Window.60$VP, xlab = "Vocal Prevalence")
+# going to need to model this as a binomial distribution
+
+Most.present.spp <- VP.Window.60 %>% 
+  group_by(Species) %>% 
+  summarize(sum = sum(VP)) %>% 
+  view()
+# Hauxwell's Thrush, Black-faced Antthrush, Thrush-like Wren
+
+# SPECIES VOCAL PREVALENCE MODEL -----------------------------------------------
+
+# Hauxwell's Thrush 
+VP.Window.60.HATH <- VP.Window.60 %>% 
+  filter(Species == "HATH")
+
+gghistogram(VP.Window.60.HATH$VP, xlab = "VP")
+ggqqplot(VP.Window.60.HATH$VP, ylab = "VP")
+
+VPgam.60.ar1.HATH <- mgcv::gamm(VP ~ s(Minute, by = SiteDay) + s(Day, bs = "re") + s(Site, bs = "re"),
+                            correlation = corAR1(form = ~ Minute | SiteDay),
+                            family = "poisson",
+                            method = "REML",
+                            data = VP.Window.60.HATH)
+
+# checking for autocorrelation issues
+performance::check_singularity(VPgam.60.ar1.HATH$gam)
+acf(resid(VPgam.60.ar1.HATH$lme, type = "normalized")) # visually, we do not have autocorrelated residuals
+pacf(resid(VPgam.60.ar1.HATH$lme, type = "normalized"))
+
+# checking model diagnostics
+par(mfrow=c(2,2))
+gam.check(VPgam.60.ar1.HATH$gam) # k values are too small, but we can't change them, residuals look great
+concurvity(VPgam.60.ar1.HATH$gam, full = TRUE) # no issues with concurvity
+concurvity(VPgam.60.ar1.HATH$gam, full = FALSE) # no issues with concurvity
+
+summary(VPgam.60.ar1.HATH$gam)
+anova.gam(VPgam.60.ar1.HATH$gam)
+# visualizing partial effects
+plot(VPgam.60.ar1.HATH$gam, shade = TRUE, shift = coef(VPgam.60.ar1.HATH$gam)[1],
+     trans = exp, pages = 1, all.terms = TRUE, rug = FALSE)
+
+
+# Black-faced Antthrush 
+VP.Window.60.BFAT <- VP.Window.60 %>% 
+  filter(Species == "BFAT")
+
+gghistogram(VP.Window.60.BFAT$VP, xlab = "VP")
+ggqqplot(VP.Window.60.BFAT$VP, ylab = "VP")
+
+VPgam.60.ar1.BFAT <- mgcv::gamm(cbind(VP, VA) ~ s(Minute, by = Day) + s(Day, bs = "re") + s(Site, bs = "re"),
+                                correlation = corAR1(form = ~ Minute | SiteDay),
+                                family = binomial(link = "logit"),
+                                method = "REML",
+                                data = VP.Window.60.BFAT)
+
+# checking for autocorrelation issues
+performance::check_singularity(VP.Window.60.BFAT$gam)
+acf(resid(VP.Window.60.BFAT$lme, type = "normalized")) # visually, we do not have autocorrelated residuals
+pacf(resid(VP.Window.60.BFAT$lme, type = "normalized"))
+
+# checking model diagnostics
+par(mfrow=c(2,2))
+gam.check(VP.Window.60.BFAT$gam) # k values are too small, but we can't change them, residuals look great
+concurvity(VP.Window.60.BFAT$gam, full = TRUE) # no issues with concurvity
+concurvity(VP.Window.60.BFAT$gam, full = FALSE) # no issues with concurvity
+
+summary(VP.Window.60.BFAT$gam)
+anova.gam(VP.Window.60.BFAT$gam)
+# visualizing partial effects
+plot(VP.Window.60.BFAT$gam, shade = TRUE, shift = coef(VP.Window.60.BFAT$gam)[1],
+     trans = exp, pages = 1, all.terms = TRUE, rug = FALSE)
+
+
+
+# Thrush-like Wren 
+VP.Window.60.TLWR <- VP.Window.60 %>% 
+  filter(Species == "TLWR")
+
+gghistogram(VP.Window.60.TLWR$VP, xlab = "VP")
+ggqqplot(VP.Window.60.TLWR$VP, ylab = "VP")
+
+VPgam.60.ar1.TLWR <- mgcv::gamm(cbind(VP, VA) ~ s(Minute) + s(Day, bs = "re") + s(Site, bs = "re"),
+                                correlation = corAR1(form = ~ Minute | SiteDay),
+                                family = binomial(link = "logit"),
+                                method = "REML",
+                                data = VP.Window.60.TLWR)
+
+# checking for autocorrelation issues
+performance::check_singularity(VP.Window.60.TLWR$gam)
+acf(resid(VP.Window.60.TLWR$lme, type = "normalized")) # visually, we do not have autocorrelated residuals
+pacf(resid(VP.Window.60.TLWR$lme, type = "normalized"))
+
+# checking model diagnostics
+par(mfrow=c(2,2))
+gam.check(VP.Window.60.TLWR$gam) # k values are too small, but we can't change them, residuals look great
+concurvity(VP.Window.60.TLWR$gam, full = TRUE) # no issues with concurvity
+concurvity(VP.Window.60.TLWR$gam, full = FALSE) # no issues with concurvity
+
+summary(VP.Window.60.TLWR$gam)
+anova.gam(VP.Window.60.TLWR$gam)
+# visualizing partial effects
+plot(VP.Window.60.TLWR$gam, shade = TRUE, shift = coef(VP.Window.60.TLWR$gam)[1],
+     trans = exp, pages = 1, all.terms = TRUE, rug = FALSE)
+
+
