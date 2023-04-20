@@ -75,6 +75,14 @@ anova.gam(SRgam.60.ar1$gam)
 plot(SRgam.60.ar1$gam, shade = TRUE, shift = coef(SRgam.60.ar1$gam)[1],
      trans = exp, pages = 1, all.terms = TRUE, rug = FALSE)
 
+SR.anova <- aov(SR ~ SiteDay, data = SR.Window.60)
+SR.tukey <- TukeyHSD(SR.anova)
+
+library(agricolae)
+SR.HSD <- HSD.test(SR.anova, trt = 'group')
+
+
+
 
 # creating a second model to smooth minute by day effects
 SRgam.60.ar1.day <- mgcv::gamm(SR ~ s(Minute, by = Day) + s(Site, bs = "re") + s(Day, bs = "re"),
@@ -107,31 +115,8 @@ SR.Window.60 <- cbind(SR.Window.60, predicted.sr, predicted.sr.day) %>%
 
 write.csv(SR.Window.60, "Outputs/SR.Window.60.pred")
 
-# smoothing predictions by day
-ggplot(data = SR.Window.60) +
-  #geom_point(mapping = aes(x = Minute, y = SR, color = Site)) +
-  geom_line(mapping = aes(x = Minute, y = fit, color = Site)) +
-  geom_smooth(mapping = aes(x = Minute, y = fit.day + se.fit.day), se = FALSE, color = "black", linetype = 2) +
-  geom_smooth(mapping = aes(x = Minute, y = fit.day), color = "black", size = 1.1, se = FALSE) +
-  geom_smooth(mapping = aes(x = Minute, y = fit.day - se.fit.day), se = FALSE, color = "black", linetype = 2) +
-  facet_grid(~ Day) +
-  theme_bw(base_size = 16) +
-  labs(x = "Minute", y = "Species Richness") +
-  scale_color_brewer(palette = "Dark2") +
-  theme(axis.title.x = element_text(face = "bold"),
-        axis.title.y = element_text(face = "bold"),
-        axis.text.x = element_text(hjust = 0.5),
-        axis.text.y = element_text(hjust = 1),
-        legend.title = element_blank(),
-        legend.position = "none",
-        strip.background = element_blank(),
-        strip.text.x = element_text(face = "bold"),
-        strip.text.y = element_text(face = "bold"),
-        panel.spacing = unit(1, "lines"),
-        aspect.ratio = 0.8)
-
 # predictions across days and sites
-ggplot(data = SR.Window.60) +
+SR.siteday.plot <- ggplot(data = SR.Window.60) +
   geom_point(mapping = aes(x = Minute, y = SR, color = Site)) +
   geom_line(mapping = aes(x = Minute, y = fit + se.fit), linetype = 2) +
   geom_line(mapping = aes(x = Minute, y = fit), size = 1.1) +
@@ -154,7 +139,34 @@ ggplot(data = SR.Window.60) +
 
 ggview(device = "jpeg", units = "in", dpi = 1200, width = 6, height = 12)
 
-ggsave("Figures/Fig1-SR.jpg", dpi = 1200, width = 6, height = 12)
+ggsave("Figures/Fig3A-SR.jpg", dpi = 1200, width = 6, height = 12)
+
+# smoothing predictions by day
+SR.day.plot <- ggplot(data = SR.Window.60) +
+  #geom_point(mapping = aes(x = Minute, y = SR, color = Site)) +
+  geom_line(mapping = aes(x = Minute, y = fit, color = Site)) +
+  geom_smooth(mapping = aes(x = Minute, y = fit.day + se.fit.day), se = FALSE, color = "black", linetype = 2) +
+  geom_smooth(mapping = aes(x = Minute, y = fit.day), color = "black", size = 1.1, se = FALSE) +
+  geom_smooth(mapping = aes(x = Minute, y = fit.day - se.fit.day), se = FALSE, color = "black", linetype = 2) +
+  facet_grid(~ Day) +
+  theme_bw(base_size = 16) +
+  labs(x = "Minute", y = "Species Richness") +
+  scale_color_brewer(palette = "Dark2") +
+  theme(axis.title.x = element_text(face = "bold"),
+        axis.title.y = element_text(face = "bold"),
+        axis.text.x = element_text(hjust = 0.5),
+        axis.text.y = element_text(hjust = 1),
+        legend.title = element_blank(),
+        legend.position = "none",
+        strip.background = element_blank(),
+        strip.text.x = element_text(face = "bold"),
+        strip.text.y = element_text(face = "bold"),
+        panel.spacing = unit(1, "lines"),
+        aspect.ratio = 0.8)
+
+ggview(device = "jpeg", units = "in", dpi = 1200, width = 12, height = 4)
+
+ggsave("Figures/Fig3B-SR.jpg", dpi = 1200, width = 12, height = 4)
 
 
 # TOTAL VOCAL PREVALENCE --------------------------------------------------------
@@ -247,29 +259,6 @@ TVP.Window.60 <- cbind(TVP.Window.60, predicted.tvp, predicted.tvp.day) %>%
 
 write.csv(TVP.Window.60, "Outputs/TVP.Window.60.pred")
 
-# smoothing predictions by day
-ggplot(data = TVP.Window.60) +
-  #geom_point(mapping = aes(x = Minute, y = TVP, color = Site)) +
-  geom_line(mapping = aes(x = Minute, y = fit, color = Site)) +
-  geom_smooth(mapping = aes(x = Minute, y = fit.day + se.fit.day), se = FALSE, color = "black", linetype = 2) +
-  geom_smooth(mapping = aes(x = Minute, y = fit.day), color = "black", se = FALSE, size = 1.1) +
-  geom_smooth(mapping = aes(x = Minute, y = fit.day - se.fit.day), se = FALSE, color = "black", linetype = 2) +
-  facet_grid(~ Day) +
-  theme_bw(base_size = 16) +
-  labs(x = "Minute", y = "Total Vocal Prevalence") +
-  scale_color_brewer(palette = "Dark2") +
-  theme(axis.title.x = element_text(face = "bold"),
-        axis.title.y = element_text(face = "bold"),
-        axis.text.x = element_text(hjust = 0.5),
-        axis.text.y = element_text(hjust = 1),
-        legend.title = element_blank(),
-        legend.position = "none",
-        strip.background = element_blank(),
-        strip.text.x = element_text(face = "bold"),
-        strip.text.y = element_text(face = "bold"),
-        panel.spacing = unit(1, "lines"),
-        aspect.ratio = 0.8)
-
 # predictions across days and sites
 ggplot(data = TVP.Window.60) +
   geom_point(mapping = aes(x = Minute, y = TVP, color = Site)) +
@@ -294,7 +283,39 @@ ggplot(data = TVP.Window.60) +
 
 ggview(device = "jpeg", units = "in", dpi = 1200, width = 6, height = 12)
 
-ggsave("Figures/Fig2-TVP.jpg", dpi = 1200, width = 6, height = 12)
+ggsave("Figures/Fig3A-TVP.jpg", dpi = 1200, width = 6, height = 12)
+
+# smoothing predictions by day
+ggplot(data = TVP.Window.60) +
+  #geom_point(mapping = aes(x = Minute, y = TVP, color = Site)) +
+  geom_line(mapping = aes(x = Minute, y = fit, color = Site)) +
+  geom_smooth(mapping = aes(x = Minute, y = fit.day + se.fit.day), se = FALSE, color = "black", linetype = 2) +
+  geom_smooth(mapping = aes(x = Minute, y = fit.day), color = "black", se = FALSE, size = 1.1) +
+  geom_smooth(mapping = aes(x = Minute, y = fit.day - se.fit.day), se = FALSE, color = "black", linetype = 2) +
+  facet_grid(~ Day) +
+  theme_bw(base_size = 16) +
+  labs(x = "Minute", y = "Total Vocal Prevalence") +
+  scale_color_brewer(palette = "Dark2") +
+  theme(axis.title.x = element_text(face = "bold"),
+        axis.title.y = element_text(face = "bold"),
+        axis.text.x = element_text(hjust = 0.5),
+        axis.text.y = element_text(hjust = 1),
+        legend.title = element_blank(),
+        legend.position = "none",
+        strip.background = element_blank(),
+        strip.text.x = element_text(face = "bold"),
+        strip.text.y = element_text(face = "bold"),
+        panel.spacing = unit(1, "lines"),
+        aspect.ratio = 0.8)
+
+ggview(device = "jpeg", units = "in", dpi = 1200, width = 12, height = 4)
+
+ggsave("Figures/Fig3B-TVP.jpg", dpi = 1200, width = 12, height = 4)
+
+
+
+
+
 
 
 # SPECIES VOCAL PREVALENCE -----------------------------------------------------
@@ -327,7 +348,7 @@ VP.Window.60.HATH <- VP.Window.60 %>%
 gghistogram(VP.Window.60.HATH$VP, xlab = "VP")
 ggqqplot(VP.Window.60.HATH$VP, ylab = "VP")
 
-VPgam.60.ar1.HATH <- mgcv::gamm(VP ~ s(Minute, by = SiteDay) + s(Day, bs = "re") + s(Site, bs = "re"),
+VPgam.60.ar1.HATH <- mgcv::gamm(VP ~ s(Minute) + s(Day, bs = "re") + s(Site, bs = "re"),
                             correlation = corAR1(form = ~ Minute | SiteDay),
                             family = "poisson",
                             method = "REML",
@@ -351,66 +372,247 @@ plot(VPgam.60.ar1.HATH$gam, shade = TRUE, shift = coef(VPgam.60.ar1.HATH$gam)[1]
      trans = exp, pages = 1, all.terms = TRUE, rug = FALSE)
 
 
-# Black-faced Antthrush 
+#Black-faced Antthrush
 VP.Window.60.BFAT <- VP.Window.60 %>% 
   filter(Species == "BFAT")
 
 gghistogram(VP.Window.60.BFAT$VP, xlab = "VP")
 ggqqplot(VP.Window.60.BFAT$VP, ylab = "VP")
 
-VPgam.60.ar1.BFAT <- mgcv::gamm(cbind(VP, VA) ~ s(Minute, by = Day) + s(Day, bs = "re") + s(Site, bs = "re"),
+VPgam.60.ar1.BFAT <- mgcv::gamm(VP ~ s(Minute) + s(Day, bs = "re") + s(Site, bs = "re"),
                                 correlation = corAR1(form = ~ Minute | SiteDay),
-                                family = binomial(link = "logit"),
+                                family = "poisson",
                                 method = "REML",
                                 data = VP.Window.60.BFAT)
 
 # checking for autocorrelation issues
-performance::check_singularity(VP.Window.60.BFAT$gam)
-acf(resid(VP.Window.60.BFAT$lme, type = "normalized")) # visually, we do not have autocorrelated residuals
-pacf(resid(VP.Window.60.BFAT$lme, type = "normalized"))
+performance::check_singularity(VPgam.60.ar1.BFAT$gam)
+acf(resid(VPgam.60.ar1.BFAT$lme, type = "normalized")) # visually, we do not have autocorrelated residuals
+pacf(resid(VPgam.60.ar1.BFAT$lme, type = "normalized"))
 
 # checking model diagnostics
 par(mfrow=c(2,2))
-gam.check(VP.Window.60.BFAT$gam) # k values are too small, but we can't change them, residuals look great
-concurvity(VP.Window.60.BFAT$gam, full = TRUE) # no issues with concurvity
-concurvity(VP.Window.60.BFAT$gam, full = FALSE) # no issues with concurvity
+gam.check(VPgam.60.ar1.BFAT$gam) # k values are too small, but we can't change them, residuals look great
+concurvity(VPgam.60.ar1.BFAT$gam, full = TRUE) # no issues with concurvity
+concurvity(VPgam.60.ar1.BFAT$gam, full = FALSE) # no issues with concurvity
 
-summary(VP.Window.60.BFAT$gam)
-anova.gam(VP.Window.60.BFAT$gam)
+summary(VPgam.60.ar1.BFAT$gam)
+anova.gam(VPgam.60.ar1.BFAT$gam)
 # visualizing partial effects
-plot(VP.Window.60.BFAT$gam, shade = TRUE, shift = coef(VP.Window.60.BFAT$gam)[1],
+plot(VPgam.60.ar1.BFAT$gam, shade = TRUE, shift = coef(VPgam.60.ar1.BFAT$gam)[1],
      trans = exp, pages = 1, all.terms = TRUE, rug = FALSE)
 
 
-
-# Thrush-like Wren 
+#Thrush-like Wren
 VP.Window.60.TLWR <- VP.Window.60 %>% 
   filter(Species == "TLWR")
 
 gghistogram(VP.Window.60.TLWR$VP, xlab = "VP")
 ggqqplot(VP.Window.60.TLWR$VP, ylab = "VP")
 
-VPgam.60.ar1.TLWR <- mgcv::gamm(cbind(VP, VA) ~ s(Minute) + s(Day, bs = "re") + s(Site, bs = "re"),
+VPgam.60.ar1.TLWR <- mgcv::gamm(VP ~ s(Minute) + s(Day, bs = "re") + s(Site, bs = "re"),
                                 correlation = corAR1(form = ~ Minute | SiteDay),
-                                family = binomial(link = "logit"),
+                                family = "poisson",
                                 method = "REML",
                                 data = VP.Window.60.TLWR)
 
 # checking for autocorrelation issues
-performance::check_singularity(VP.Window.60.TLWR$gam)
-acf(resid(VP.Window.60.TLWR$lme, type = "normalized")) # visually, we do not have autocorrelated residuals
-pacf(resid(VP.Window.60.TLWR$lme, type = "normalized"))
+performance::check_singularity(VPgam.60.ar1.TLWR$gam)
+acf(resid(VPgam.60.ar1.TLWR$lme, type = "normalized")) # visually, we do not have autocorrelated residuals
+pacf(resid(VPgam.60.ar1.TLWR$lme, type = "normalized"))
 
 # checking model diagnostics
 par(mfrow=c(2,2))
-gam.check(VP.Window.60.TLWR$gam) # k values are too small, but we can't change them, residuals look great
-concurvity(VP.Window.60.TLWR$gam, full = TRUE) # no issues with concurvity
-concurvity(VP.Window.60.TLWR$gam, full = FALSE) # no issues with concurvity
+gam.check(VPgam.60.ar1.TLWR$gam) # k values are too small, but we can't change them, residuals look great
+concurvity(VPgam.60.ar1.TLWR$gam, full = TRUE) # no issues with concurvity
+concurvity(VPgam.60.ar1.TLWR$gam, full = FALSE) # no issues with concurvity
 
-summary(VP.Window.60.TLWR$gam)
-anova.gam(VP.Window.60.TLWR$gam)
+summary(VPgam.60.ar1.TLWR$gam)
+anova.gam(VPgam.60.ar1.TLWR$gam)
 # visualizing partial effects
-plot(VP.Window.60.TLWR$gam, shade = TRUE, shift = coef(VP.Window.60.TLWR$gam)[1],
+plot(VPgam.60.ar1.TLWR$gam, shade = TRUE, shift = coef(VPgam.60.ar1.TLWR$gam)[1],
      trans = exp, pages = 1, all.terms = TRUE, rug = FALSE)
 
+
+# Piratic Flycatcher
+VP.Window.60.PIFL <- VP.Window.60 %>% 
+  filter(Species == "PIFL")
+
+gghistogram(VP.Window.60.PIFL$VP, xlab = "VP")
+ggqqplot(VP.Window.60.PIFL$VP, ylab = "VP")
+
+VPgam.60.ar1.PIFL <- mgcv::gamm(VP ~ s(Minute) + s(Day, bs = "re") + s(Site, bs = "re"),
+                                correlation = corAR1(form = ~ Minute | SiteDay),
+                                family = "poisson",
+                                method = "REML",
+                                data = VP.Window.60.PIFL)
+
+# checking for autocorrelation issues
+performance::check_singularity(VPgam.60.ar1.PIFL$gam)
+acf(resid(VPgam.60.ar1.PIFL$lme, type = "normalized")) # visually, we do not have autocorrelated residuals
+pacf(resid(VPgam.60.ar1.PIFL$lme, type = "normalized"))
+
+# checking model diagnostics
+par(mfrow=c(2,2))
+gam.check(VPgam.60.ar1.PIFL$gam) # k values are too small, but we can't change them, residuals look great
+concurvity(VPgam.60.ar1.PIFL$gam, full = TRUE) # no issues with concurvity
+concurvity(VPgam.60.ar1.PIFL$gam, full = FALSE) # no issues with concurvity
+
+summary(VPgam.60.ar1.PIFL$gam)
+anova.gam(VPgam.60.ar1.PIFL$gam)
+# visualizing partial effects
+plot(VPgam.60.ar1.PIFL$gam, shade = TRUE, shift = coef(VPgam.60.ar1.PIFL$gam)[1],
+     trans = exp, pages = 1, all.terms = TRUE, rug = FALSE)
+
+
+#Buff-throated Woodcreeper
+VP.Window.60.BTWO <- VP.Window.60 %>% 
+  filter(Species == "BTWO")
+
+gghistogram(VP.Window.60.BTWO$VP, xlab = "VP")
+ggqqplot(VP.Window.60.BTWO$VP, ylab = "VP")
+
+VPgam.60.ar1.BTWO <- mgcv::gamm(VP ~ s(Minute) + s(Day, bs = "re") + s(Site, bs = "re"),
+                                correlation = corAR1(form = ~ Minute | SiteDay),
+                                family = "poisson",
+                                method = "REML",
+                                data = VP.Window.60.BTWO)
+
+# checking for autocorrelation issues
+performance::check_singularity(VPgam.60.ar1.BTWO$gam)
+acf(resid(VPgam.60.ar1.BTWO$lme, type = "normalized")) # visually, we do not have autocorrelated residuals
+pacf(resid(VPgam.60.ar1.BTWO$lme, type = "normalized"))
+
+# checking model diagnostics
+par(mfrow=c(2,2))
+gam.check(VPgam.60.ar1.BTWO$gam) # k values are too small, but we can't change them, residuals look great
+concurvity(VPgam.60.ar1.BTWO$gam, full = TRUE) # no issues with concurvity
+concurvity(VPgam.60.ar1.BTWO$gam, full = FALSE) # no issues with concurvity
+
+summary(VPgam.60.ar1.BTWO$gam)
+anova.gam(VPgam.60.ar1.BTWO$gam)
+# visualizing partial effects
+plot(VPgam.60.ar1.BTWO$gam, shade = TRUE, shift = coef(VPgam.60.ar1.BTWO$gam)[1],
+     trans = exp, pages = 1, all.terms = TRUE, rug = FALSE)
+
+
+#Little Tinamou
+VP.Window.60.LITI <- VP.Window.60 %>% 
+  filter(Species == "LITI")
+
+gghistogram(VP.Window.60.LITI$VP, xlab = "VP")
+ggqqplot(VP.Window.60.LITI$VP, ylab = "VP")
+
+VPgam.60.ar1.LITI <- mgcv::gamm(VP ~ s(Minute) + s(Day, bs = "re") + s(Site, bs = "re"),
+                                correlation = corAR1(form = ~ Minute | SiteDay),
+                                family = "poisson",
+                                method = "REML",
+                                data = VP.Window.60.LITI)
+
+# checking for autocorrelation issues
+performance::check_singularity(VPgam.60.ar1.LITI$gam)
+acf(resid(VPgam.60.ar1.LITI$lme, type = "normalized")) # visually, we do not have autocorrelated residuals
+pacf(resid(VPgam.60.ar1.LITI$lme, type = "normalized"))
+
+# checking model diagnostics
+par(mfrow=c(2,2))
+gam.check(VPgam.60.ar1.LITI$gam) # k values are too small, but we can't change them, residuals look great
+concurvity(VPgam.60.ar1.LITI$gam, full = TRUE) # no issues with concurvity
+concurvity(VPgam.60.ar1.LITI$gam, full = FALSE) # no issues with concurvity
+
+summary(VPgam.60.ar1.LITI$gam)
+anova.gam(VPgam.60.ar1.LITI$gam)
+# visualizing partial effects
+plot(VPgam.60.ar1.LITI$gam, shade = TRUE, shift = coef(VPgam.60.ar1.LITI$gam)[1],
+     trans = exp, pages = 1, all.terms = TRUE, rug = FALSE)
+
+
+# Amazonian Barred Woodcreeper
+VP.Window.60.AMBW <- VP.Window.60 %>% 
+  filter(Species == "AMBW")
+
+gghistogram(VP.Window.60.AMBW$VP, xlab = "VP")
+ggqqplot(VP.Window.60.AMBW$VP, ylab = "VP")
+
+VPgam.60.ar1.AMBW <- mgcv::gamm(VP ~ s(Minute) + s(Day, bs = "re") + s(Site, bs = "re"),
+                                correlation = corAR1(form = ~ Minute | SiteDay),
+                                family = "poisson",
+                                method = "REML",
+                                data = VP.Window.60.AMBW)
+
+# checking for autocorrelation issues
+performance::check_singularity(VPgam.60.ar1.AMBW$gam)
+acf(resid(VPgam.60.ar1.AMBW$lme, type = "normalized")) # visually, we do not have autocorrelated residuals
+pacf(resid(VPgam.60.ar1.AMBW$lme, type = "normalized"))
+
+# checking model diagnostics
+par(mfrow=c(2,2))
+gam.check(VPgam.60.ar1.AMBW$gam) # k values are too small, but we can't change them, residuals look great
+concurvity(VPgam.60.ar1.AMBW$gam, full = TRUE) # no issues with concurvity
+concurvity(VPgam.60.ar1.AMBW$gam, full = FALSE) # no issues with concurvity
+
+summary(VPgam.60.ar1.AMBW$gam)
+anova.gam(VPgam.60.ar1.AMBW$gam)
+# visualizing partial effects
+plot(VPgam.60.ar1.AMBW$gam, shade = TRUE, shift = coef(VPgam.60.ar1.AMBW$gam)[1],
+     trans = exp, pages = 1, all.terms = TRUE, rug = FALSE)
+
+
+
+# MODEL PREDICTION --------------------------------------------------------
+
+# predicting from the model
+predicted.VP.HATH <- data.frame(predict(VPgam.60.ar1.HATH$gam, type = "response", se.fit = TRUE))
+predicted.VP.HATH <- cbind(VP.Window.60.HATH, predicted.VP.HATH)
+
+predicted.VP.BFAT <- data.frame(predict(VPgam.60.ar1.BFAT$gam, type = "response", se.fit = TRUE))
+predicted.VP.BFAT <- cbind(VP.Window.60.BFAT, predicted.VP.BFAT)
+
+predicted.VP.TLWR <- data.frame(predict(VPgam.60.ar1.TLWR$gam, type = "response", se.fit = TRUE))
+predicted.VP.TLWR <- cbind(VP.Window.60.TLWR, predicted.VP.TLWR)
+
+predicted.VP.PIFL <- data.frame(predict(VPgam.60.ar1.PIFL$gam, type = "response", se.fit = TRUE))
+predicted.VP.PIFL <- cbind(VP.Window.60.PIFL, predicted.VP.PIFL)
+
+predicted.VP.BTWO <- data.frame(predict(VPgam.60.ar1.BTWO$gam, type = "response", se.fit = TRUE))
+predicted.VP.BTWO <- cbind(VP.Window.60.BTWO, predicted.VP.BTWO)
+
+predicted.VP.LITI <- data.frame(predict(VPgam.60.ar1.LITI$gam, type = "response", se.fit = TRUE))
+predicted.VP.LITI <- cbind(VP.Window.60.LITI, predicted.VP.LITI)
+
+predicted.VP.spp <- rbind(predicted.VP.HATH, predicted.VP.BFAT, predicted.VP.TLWR,
+                          predicted.VP.PIFL, predicted.VP.BTWO, predicted.VP.LITI) %>% 
+  # converting species codes to names
+  mutate(Species = if_else(Species == "BFAT", "Black-faced Antthrush", Species),
+         Species = if_else(Species == "BTWO", "Buff-throated Woodcreeper", Species),
+         Species = if_else(Species == "HATH", "Hauxwell's Thrush", Species),
+         Species = if_else(Species == "LITI", "Little Tinamou", Species),
+         Species = if_else(Species == "PIFL", "Piratic Flycatcher", Species),
+         Species = if_else(Species == "TLWR", "Thrush-like Wren", Species))
+
+ggplot(data = predicted.VP.spp) +
+  #geom_point(mapping = aes(x = Minute, y = VP)) +
+  #geom_line(mapping = aes(x = Minute, y = fit)) +
+  geom_smooth(mapping = aes(x = Minute, y = fit + se.fit), se = FALSE, color = "black", linetype = 2) +
+  geom_smooth(mapping = aes(x = Minute, y = fit), se = FALSE, color = "black", size = 1.1) +
+  geom_smooth(mapping = aes(x = Minute, y = fit - se.fit), se = FALSE, color = "black", linetype = 2) +
+  facet_wrap(~ Species) +
+  theme_bw(base_size = 16) +
+  labs(x = "Minute", y = "Vocal Prevalence") +
+  scale_color_brewer(palette = "Dark2") +
+  theme(axis.title.x = element_text(face = "bold"),
+        axis.title.y = element_text(face = "bold"),
+        axis.text.x = element_text(hjust = 0.5),
+        axis.text.y = element_text(hjust = 1),
+        legend.title = element_blank(),
+        legend.position = "none",
+        strip.background = element_blank(),
+        strip.text.x = element_text(face = "bold"),
+        strip.text.y = element_text(face = "bold"),
+        panel.spacing = unit(1, "lines"),
+        aspect.ratio = 0.8)
+
+ggview(device = "jpeg", units = "in", dpi = 1200, width = 9, height = 6)
+
+ggsave("Figures/Fig5-TP.jpg", dpi = 1200, width = 9, height = 4)
 
