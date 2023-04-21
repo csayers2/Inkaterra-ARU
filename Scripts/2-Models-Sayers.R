@@ -372,7 +372,7 @@ plot(VPgam.60.ar1.HATH$gam, shade = TRUE, shift = coef(VPgam.60.ar1.HATH$gam)[1]
      trans = exp, pages = 1, all.terms = TRUE, rug = FALSE)
 
 
-#Black-faced Antthrush
+# Black-faced Antthrush
 VP.Window.60.BFAT <- VP.Window.60 %>% 
   filter(Species == "BFAT")
 
@@ -465,7 +465,7 @@ plot(VPgam.60.ar1.PIFL$gam, shade = TRUE, shift = coef(VPgam.60.ar1.PIFL$gam)[1]
      trans = exp, pages = 1, all.terms = TRUE, rug = FALSE)
 
 
-#Buff-throated Woodcreeper
+# Buff-throated Woodcreeper
 VP.Window.60.BTWO <- VP.Window.60 %>% 
   filter(Species == "BTWO")
 
@@ -496,34 +496,65 @@ plot(VPgam.60.ar1.BTWO$gam, shade = TRUE, shift = coef(VPgam.60.ar1.BTWO$gam)[1]
      trans = exp, pages = 1, all.terms = TRUE, rug = FALSE)
 
 
-#Little Tinamou
-VP.Window.60.LITI <- VP.Window.60 %>% 
-  filter(Species == "LITI")
+# Amazonian Motmot
+VP.Window.60.AMMO <- VP.Window.60 %>% 
+  filter(Species == "AMMO")
 
-gghistogram(VP.Window.60.LITI$VP, xlab = "VP")
-ggqqplot(VP.Window.60.LITI$VP, ylab = "VP")
+gghistogram(VP.Window.60.AMMO$VP, xlab = "VP")
+ggqqplot(VP.Window.60.AMMO$VP, ylab = "VP")
 
-VPgam.60.ar1.LITI <- mgcv::gamm(VP ~ s(Minute) + s(Day, bs = "re") + s(Site, bs = "re"),
+VPgam.60.ar1.AMMO <- mgcv::gamm(VP ~ s(Minute) + s(Day, bs = "re") + s(Site, bs = "re"),
                                 correlation = corAR1(form = ~ Minute | SiteDay),
                                 family = "poisson",
                                 method = "REML",
-                                data = VP.Window.60.LITI)
+                                data = VP.Window.60.AMMO)
 
 # checking for autocorrelation issues
-performance::check_singularity(VPgam.60.ar1.LITI$gam)
-acf(resid(VPgam.60.ar1.LITI$lme, type = "normalized")) # visually, we do not have autocorrelated residuals
-pacf(resid(VPgam.60.ar1.LITI$lme, type = "normalized"))
+performance::check_singularity(VPgam.60.ar1.AMMO$gam)
+acf(resid(VPgam.60.ar1.AMMO$lme, type = "normalized")) # visually, we do not have autocorrelated residuals
+pacf(resid(VPgam.60.ar1.AMMO$lme, type = "normalized"))
 
 # checking model diagnostics
 par(mfrow=c(2,2))
-gam.check(VPgam.60.ar1.LITI$gam) # k values are too small, but we can't change them, residuals look great
-concurvity(VPgam.60.ar1.LITI$gam, full = TRUE) # no issues with concurvity
-concurvity(VPgam.60.ar1.LITI$gam, full = FALSE) # no issues with concurvity
+gam.check(VPgam.60.ar1.AMMO$gam) # k values are too small, but we can't change them, residuals look great
+concurvity(VPgam.60.ar1.AMMO$gam, full = TRUE) # no issues with concurvity
+concurvity(VPgam.60.ar1.AMMO$gam, full = FALSE) # no issues with concurvity
 
-summary(VPgam.60.ar1.LITI$gam)
-anova.gam(VPgam.60.ar1.LITI$gam)
+summary(VPgam.60.ar1.AMMO$gam)
+anova.gam(VPgam.60.ar1.AMMO$gam)
 # visualizing partial effects
-plot(VPgam.60.ar1.LITI$gam, shade = TRUE, shift = coef(VPgam.60.ar1.LITI$gam)[1],
+plot(VPgam.60.ar1.AMMO$gam, shade = TRUE, shift = coef(VPgam.60.ar1.AMMO$gam)[1],
+     trans = exp, pages = 1, all.terms = TRUE, rug = FALSE)
+
+
+# Buff-breasted Wren
+VP.Window.60.BBWR <- VP.Window.60 %>% 
+  filter(Species == "BBWR")
+
+gghistogram(VP.Window.60.BBWR$VP, xlab = "VP")
+ggqqplot(VP.Window.60.BBWR$VP, ylab = "VP")
+
+VPgam.60.ar1.BBWR <- mgcv::gamm(VP ~ s(Minute) + s(Day, bs = "re") + s(Site, bs = "re"),
+                                correlation = corAR1(form = ~ Minute | SiteDay),
+                                family = "poisson",
+                                method = "REML",
+                                data = VP.Window.60.BBWR)
+
+# checking for autocorrelation issues
+performance::check_singularity(VPgam.60.ar1.BBWR$gam)
+acf(resid(VPgam.60.ar1.BBWR$lme, type = "normalized")) # visually, we do not have autocorrelated residuals
+pacf(resid(VPgam.60.ar1.BBWR$lme, type = "normalized"))
+
+# checking model diagnostics
+par(mfrow=c(2,2))
+gam.check(VPgam.60.ar1.BBWR$gam) # k values are too small, but we can't change them, residuals look great
+concurvity(VPgam.60.ar1.BBWR$gam, full = TRUE) # no issues with concurvity
+concurvity(VPgam.60.ar1.BBWR$gam, full = FALSE) # no issues with concurvity
+
+summary(VPgam.60.ar1.BBWR$gam)
+anova.gam(VPgam.60.ar1.BBWR$gam)
+# visualizing partial effects
+plot(VPgam.60.ar1.BBWR$gam, shade = TRUE, shift = coef(VPgam.60.ar1.GRAB$gam)[1],
      trans = exp, pages = 1, all.terms = TRUE, rug = FALSE)
 
 
@@ -574,19 +605,28 @@ predicted.VP.TLWR <- cbind(VP.Window.60.TLWR, predicted.VP.TLWR)
 predicted.VP.PIFL <- data.frame(predict(VPgam.60.ar1.PIFL$gam, type = "response", se.fit = TRUE))
 predicted.VP.PIFL <- cbind(VP.Window.60.PIFL, predicted.VP.PIFL)
 
+predicted.VP.AMMO <- data.frame(predict(VPgam.60.ar1.AMMO$gam, type = "response", se.fit = TRUE))
+predicted.VP.AMMO <- cbind(VP.Window.60.AMMO, predicted.VP.AMMO)
+
 predicted.VP.BTWO <- data.frame(predict(VPgam.60.ar1.BTWO$gam, type = "response", se.fit = TRUE))
 predicted.VP.BTWO <- cbind(VP.Window.60.BTWO, predicted.VP.BTWO)
 
-predicted.VP.LITI <- data.frame(predict(VPgam.60.ar1.LITI$gam, type = "response", se.fit = TRUE))
-predicted.VP.LITI <- cbind(VP.Window.60.LITI, predicted.VP.LITI)
+predicted.VP.BBWR <- data.frame(predict(VPgam.60.ar1.BBWR$gam, type = "response", se.fit = TRUE))
+predicted.VP.BBWR <- cbind(VP.Window.60.BBWR, predicted.VP.BBWR)
+
+predicted.VP.AMBW <- data.frame(predict(VPgam.60.ar1.AMBW$gam, type = "response", se.fit = TRUE))
+predicted.VP.AMBW <- cbind(VP.Window.60.AMBW, predicted.VP.AMBW)
 
 predicted.VP.spp <- rbind(predicted.VP.HATH, predicted.VP.BFAT, predicted.VP.TLWR,
-                          predicted.VP.PIFL, predicted.VP.BTWO, predicted.VP.LITI) %>% 
+                          predicted.VP.PIFL, predicted.VP.BTWO, predicted.VP.AMMO,
+                          predicted.VP.BBWR, predicted.VP.AMBW) %>% 
   # converting species codes to names
-  mutate(Species = if_else(Species == "BFAT", "Black-faced Antthrush", Species),
+  mutate(Species = if_else(Species == "AMMO", "Amazonian Motmot", Species),
+         Species = if_else(Species == "AMBW", "Amazonian Barred Woodcreeper", Species),
+         Species = if_else(Species == "BFAT", "Black-faced Antthrush", Species),
+         Species = if_else(Species == "BBWR", "Buff-breasted Wren", Species),
          Species = if_else(Species == "BTWO", "Buff-throated Woodcreeper", Species),
          Species = if_else(Species == "HATH", "Hauxwell's Thrush", Species),
-         Species = if_else(Species == "LITI", "Little Tinamou", Species),
          Species = if_else(Species == "PIFL", "Piratic Flycatcher", Species),
          Species = if_else(Species == "TLWR", "Thrush-like Wren", Species))
 
@@ -596,7 +636,7 @@ ggplot(data = predicted.VP.spp) +
   geom_smooth(mapping = aes(x = Minute, y = fit + se.fit), se = FALSE, color = "black", linetype = 2) +
   geom_smooth(mapping = aes(x = Minute, y = fit), se = FALSE, color = "black", size = 1.1) +
   geom_smooth(mapping = aes(x = Minute, y = fit - se.fit), se = FALSE, color = "black", linetype = 2) +
-  facet_wrap(~ Species) +
+  facet_wrap(~ Species, ncol = 4) +
   theme_bw(base_size = 16) +
   labs(x = "Minute", y = "Vocal Prevalence") +
   scale_color_brewer(palette = "Dark2") +
@@ -610,9 +650,9 @@ ggplot(data = predicted.VP.spp) +
         strip.text.x = element_text(face = "bold"),
         strip.text.y = element_text(face = "bold"),
         panel.spacing = unit(1, "lines"),
-        aspect.ratio = 0.8)
+        aspect.ratio = 0.75)
 
-ggview(device = "jpeg", units = "in", dpi = 1200, width = 9, height = 6)
+ggview(device = "jpeg", units = "in", dpi = 1200, width = 12.5, height = 6)
 
-ggsave("Figures/Fig5-TP.jpg", dpi = 1200, width = 9, height = 4)
+ggsave("Figures/Fig5-VP.jpg", dpi = 1200, width = 12.5, height = 6)
 
