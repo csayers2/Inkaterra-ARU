@@ -599,8 +599,8 @@ predicted.VP.HATH <- cbind(VP.Window.60.HATH, predicted.VP.HATH)
 predicted.VP.BFAT <- data.frame(predict(VPgam.60.ar1.BFAT$gam, type = "response", se.fit = TRUE))
 predicted.VP.BFAT <- cbind(VP.Window.60.BFAT, predicted.VP.BFAT)
 
-predicted.VP.TLWR <- data.frame(predict(VPgam.60.ar1.TLWR$gam, type = "response", se.fit = TRUE))
-predicted.VP.TLWR <- cbind(VP.Window.60.TLWR, predicted.VP.TLWR)
+#predicted.VP.TLWR <- data.frame(predict(VPgam.60.ar1.TLWR$gam, type = "response", se.fit = TRUE))
+#predicted.VP.TLWR <- cbind(VP.Window.60.TLWR, predicted.VP.TLWR)
 
 predicted.VP.PIFL <- data.frame(predict(VPgam.60.ar1.PIFL$gam, type = "response", se.fit = TRUE))
 predicted.VP.PIFL <- cbind(VP.Window.60.PIFL, predicted.VP.PIFL)
@@ -611,24 +611,21 @@ predicted.VP.AMMO <- cbind(VP.Window.60.AMMO, predicted.VP.AMMO)
 predicted.VP.BTWO <- data.frame(predict(VPgam.60.ar1.BTWO$gam, type = "response", se.fit = TRUE))
 predicted.VP.BTWO <- cbind(VP.Window.60.BTWO, predicted.VP.BTWO)
 
-predicted.VP.BBWR <- data.frame(predict(VPgam.60.ar1.BBWR$gam, type = "response", se.fit = TRUE))
-predicted.VP.BBWR <- cbind(VP.Window.60.BBWR, predicted.VP.BBWR)
+#predicted.VP.BBWR <- data.frame(predict(VPgam.60.ar1.BBWR$gam, type = "response", se.fit = TRUE))
+#predicted.VP.BBWR <- cbind(VP.Window.60.BBWR, predicted.VP.BBWR)
 
 predicted.VP.AMBW <- data.frame(predict(VPgam.60.ar1.AMBW$gam, type = "response", se.fit = TRUE))
 predicted.VP.AMBW <- cbind(VP.Window.60.AMBW, predicted.VP.AMBW)
 
-predicted.VP.spp <- rbind(predicted.VP.HATH, predicted.VP.BFAT, predicted.VP.TLWR,
-                          predicted.VP.PIFL, predicted.VP.BTWO, predicted.VP.AMMO,
-                          predicted.VP.BBWR, predicted.VP.AMBW) %>% 
+predicted.VP.spp <- rbind(predicted.VP.HATH, predicted.VP.BFAT, predicted.VP.PIFL,
+                          predicted.VP.BTWO, predicted.VP.AMMO, predicted.VP.AMBW) %>% 
   # converting species codes to names
   mutate(Species = if_else(Species == "AMMO", "Amazonian Motmot", Species),
          Species = if_else(Species == "AMBW", "Amazonian Barred Woodcreeper", Species),
          Species = if_else(Species == "BFAT", "Black-faced Antthrush", Species),
-         Species = if_else(Species == "BBWR", "Buff-breasted Wren", Species),
          Species = if_else(Species == "BTWO", "Buff-throated Woodcreeper", Species),
          Species = if_else(Species == "HATH", "Hauxwell's Thrush", Species),
-         Species = if_else(Species == "PIFL", "Piratic Flycatcher", Species),
-         Species = if_else(Species == "TLWR", "Thrush-like Wren", Species))
+         Species = if_else(Species == "PIFL", "Piratic Flycatcher", Species))
 
 ggplot(data = predicted.VP.spp) +
   #geom_point(mapping = aes(x = Minute, y = VP)) +
@@ -636,7 +633,7 @@ ggplot(data = predicted.VP.spp) +
   geom_smooth(mapping = aes(x = Minute, y = fit + se.fit), se = FALSE, color = "black", linetype = 2) +
   geom_smooth(mapping = aes(x = Minute, y = fit), se = FALSE, color = "black", size = 1.1) +
   geom_smooth(mapping = aes(x = Minute, y = fit - se.fit), se = FALSE, color = "black", linetype = 2) +
-  facet_wrap(~ Species, ncol = 4) +
+  facet_wrap(~ Species, ncol = 3) +
   theme_bw(base_size = 16) +
   labs(x = "Minute", y = "Vocal Prevalence") +
   scale_color_brewer(palette = "Dark2") +
@@ -650,9 +647,9 @@ ggplot(data = predicted.VP.spp) +
         strip.text.x = element_text(face = "bold"),
         strip.text.y = element_text(face = "bold"),
         panel.spacing = unit(1, "lines"),
-        aspect.ratio = 0.75)
+        aspect.ratio = 1)
 
-ggview(device = "jpeg", units = "in", dpi = 1200, width = 12.5, height = 6)
+ggview(device = "jpeg", units = "in", dpi = 1200, width = 10, height = 7.5)
 
-ggsave("Figures/Fig5-VP.jpg", dpi = 1200, width = 12.5, height = 6)
+ggsave("Figures/Fig5-VP.jpg", dpi = 1200, width = 10, height = 7.5)
 
