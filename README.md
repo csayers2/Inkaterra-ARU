@@ -7,7 +7,7 @@ The vocal activity and detectability of tropical birds are subject to high level
 
 ### Authors' Note/Instructions:
 
-Welcome to our open-access repository for Hopping et al. (2023), submitted to IBIS. Here you will find all of the materials necessary to reproduce the results published in the manuscript. 1-Main-Script-Sayers.R pulls in the bioacoustic data frames from Raven Pro 1.6 and calculates all relevant response variables (e.g., species richness), and 2-Models-Sayers.R builds the GAMs, performs the NMDS analysis, and produces the published data visualizations.
+Welcome to our open-access repository for Hopping et al. (2023), submitted to IBIS. Here you will find all of the materials necessary to reproduce the results published in the manuscript. 1-Main-Script-Sayers.R pulls in the bioacoustic data frames from Raven Pro 1.6 and calculates all relevant response variables (e.g., species richness), and 2-Models-Sayers.R builds the GAMs, performs the NMDS analysis, and produces the published figures.
 
 If you have any issues or general questions, please feel free to email wah63@cornell.edu. Enjoy!
 
