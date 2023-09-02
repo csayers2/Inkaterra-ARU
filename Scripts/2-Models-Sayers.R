@@ -554,7 +554,7 @@ concurvity(VPgam.60.ar1.BBWR$gam, full = FALSE) # no issues with concurvity
 summary(VPgam.60.ar1.BBWR$gam)
 anova.gam(VPgam.60.ar1.BBWR$gam)
 # visualizing partial effects
-plot(VPgam.60.ar1.BBWR$gam, shade = TRUE, shift = coef(VPgam.60.ar1.GRAB$gam)[1],
+plot(VPgam.60.ar1.BBWR$gam, shade = TRUE, shift = coef(VPgam.60.ar1.BBWR$gam)[1],
      trans = exp, pages = 1, all.terms = TRUE, rug = FALSE)
 
 
@@ -651,5 +651,5 @@ ggplot(data = predicted.VP.spp) +
 
 ggview(device = "jpeg", units = "in", dpi = 1200, width = 10, height = 7.5)
 
-ggsave("Figures/Fig5-VP.jpg", dpi = 1200, width = 10, height = 7.5)
+ggsave("Figures/Fig5-VP.png", dpi = 1200, width = 10, height = 7.5)
 

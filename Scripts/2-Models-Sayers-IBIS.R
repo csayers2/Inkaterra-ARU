@@ -81,8 +81,6 @@ library(agricolae)
 SR.HSD <- HSD.test(SR.anova, trt = 'group')
 unloadNamespace("agricolae")
 
-
-
 # creating a second model to smooth minute by day effects
 SRgam.60.ar1.day <- mgcv::gamm(SR ~ s(Minute, by = Day) + s(Site, by = Day, bs = "re"),
                                correlation = corAR1(form = ~ Minute | Site + Day),
@@ -146,7 +144,7 @@ ggplot(data = SR.Window.60) +
   #geom_point(mapping = aes(x = Minute, y = SR, color = Site)) +
   geom_line(mapping = aes(x = Minute, y = fit, color = Site), size = 0.7) +
   geom_smooth(mapping = aes(x = Minute, y = fit.day + se.fit.day), se = FALSE, color = "black", linetype = 2) +
-  geom_smooth(mapping = aes(x = Minute, y = fit.day), se = FALSE, color = "black", size = 1.1) +
+  geom_smooth(mapping = aes(x = Minute, y = fit.day), se = FALSE, color = "black", linewidth = 1.1) +
   geom_smooth(mapping = aes(x = Minute, y = fit.day - se.fit.day), se = FALSE, color = "black", linetype = 2) +
   facet_grid(~ Day) +
   theme_bw(base_size = 16) +
