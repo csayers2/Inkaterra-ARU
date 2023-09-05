@@ -16,7 +16,7 @@ select <- dplyr::select
 SiteData <- read.csv("Spreadsheets/Site-Data.csv") %>%
   select(Site, Day, Hab1, Hab2, Hab3, Edge.Distance) %>%
   mutate(Day = as.factor(Day), Site = as.factor(Site))
-
+  
 # pulling in raw annotations from Raven Pro 1.5
 Annotations <- read.csv("Spreadsheets/All-Annotations.csv") %>% 
   rename(Start = Begin.Time..s., End = End.Time..s., Species = species) %>%
@@ -247,3 +247,4 @@ TVP.Window.60 <- VP.Window.10 %>%
   left_join(SiteData, by = c("Site", "Day"))
 
 write.csv(TVP.Window.60, "Outputs/TVP.Window.60")
+

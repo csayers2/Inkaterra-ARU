@@ -1,6 +1,6 @@
 
 # Chris Sayers
-# updated April 9, 2023
+# updated September 3, 2023
 
 # script designed for data visualizations and model fitting
 
@@ -21,13 +21,13 @@ SR.Window.60 <- read.csv("Outputs/SR.Window.60") %>%
          Site = as.factor(Site),
          Day = as.factor(Day),
          Hab1 = as.factor(Hab1),
-         SiteDay = as.factor(str_c(Site, Day))) 
+         SiteDay = as.factor(str_c(Site, Day)))
 
 # OUTLIERS & NORMALITY OF RESPONSE VARIABLES -----------------------------------
 ggdensity(SR.Window.60$SR, xlab = "Species Richness")
 gghistogram(SR.Window.60$SR, xlab = "Species Richness")
 ggqqplot(SR.Window.60$SR, ylab = "Species Richness")
-shapiro.test(SR.Window.60$SR) # W = 0.97624, p-value = 2.612e-12, not normal
+shapiro.test(SR.Window.60$SR) # W = 0.97625, p-value = 2.638e-12, not normal
 
 ggplot(data = SR.Window.60) +
   geom_point(mapping = aes(x = Minute, y = SR, color = Day)) +
@@ -37,7 +37,7 @@ ggplot(data = SR.Window.60) +
 # SPECIES RICHNESS MODEL -------------------------------------------------------
 
 # biologically relevant GAM structure
-SRgam.60 <- mgcv::gamm(SR ~ s(Minute, by = SiteDay) + s(Site, bs = "re") + s(Day, bs = "re"),
+SRgam.60 <- mgcv::gamm(SR ~ s(Minute, by = SiteDay) + s(Site, by = Day, bs = "re"),
                        family = "poisson",
                        method = "REML",
                        data = SR.Window.60)
@@ -51,12 +51,11 @@ pacf(resid(SRgam.60$lme, type = "normalized"))
 
 # adding in first order autoregressive covariance structure (AR1) to account for
 # residual autocorrelation
-SRgam.60.ar1 <- mgcv::gamm(SR ~ s(Minute, by = SiteDay) + s(Site, bs = "re") + s(Day, bs = "re"),
-                             correlation = corAR1(form = ~ Minute | SiteDay),
+SRgam.60.ar1 <- mgcv::gamm(SR ~ s(Minute, by = SiteDay) + s(Site, by = Day, bs = "re"),
+                             correlation = corAR1(form = ~ Minute | Site + Day),
                              family = "poisson",
                              method = "REML",
                              data = SR.Window.60)
-# another reasonable model structure is to include site and day as FEs
 
 # checking for autocorrelation issues
 performance::check_singularity(SRgam.60.ar1$gam)
@@ -73,23 +72,22 @@ summary(SRgam.60.ar1$gam)
 anova.gam(SRgam.60.ar1$gam)
 # visualizing partial effects
 plot(SRgam.60.ar1$gam, shade = TRUE, shift = coef(SRgam.60.ar1$gam)[1],
-     trans = exp, pages = 1, all.terms = TRUE, rug = FALSE)
+     trans = exp, pages = 2, all.terms = TRUE, rug = FALSE)
 
 SR.anova <- aov(SR ~ SiteDay, data = SR.Window.60)
 SR.tukey <- TukeyHSD(SR.anova)
 
 library(agricolae)
 SR.HSD <- HSD.test(SR.anova, trt = 'group')
-
-
-
+unloadNamespace("agricolae")
 
 # creating a second model to smooth minute by day effects
-SRgam.60.ar1.day <- mgcv::gamm(SR ~ s(Minute, by = Day) + s(Site, bs = "re") + s(Day, bs = "re"),
-                               correlation = corAR1(form = ~ Minute | SiteDay),
+SRgam.60.ar1.day <- mgcv::gamm(SR ~ s(Minute, by = Day) + s(Site, by = Day, bs = "re"),
+                               correlation = corAR1(form = ~ Minute | Site + Day),
                                family = "poisson",
                                method = "REML",
                                data = SR.Window.60)
+
 summary(SRgam.60.ar1.day$gam)
 anova.gam(SRgam.60.ar1.day$gam)
 # visualizing partial effects
@@ -116,10 +114,10 @@ SR.Window.60 <- cbind(SR.Window.60, predicted.sr, predicted.sr.day) %>%
 write.csv(SR.Window.60, "Outputs/SR.Window.60.pred")
 
 # predictions across days and sites
-SR.siteday.plot <- ggplot(data = SR.Window.60) +
+ggplot(data = SR.Window.60) +
   geom_point(mapping = aes(x = Minute, y = SR, color = Site)) +
   geom_line(mapping = aes(x = Minute, y = fit + se.fit), linetype = 2) +
-  geom_line(mapping = aes(x = Minute, y = fit), size = 1.1) +
+  geom_line(mapping = aes(x = Minute, y = fit), linewidth = 1.1) +
   geom_line(mapping = aes(x = Minute, y = fit - se.fit), linetype = 2) +
   facet_grid(Site ~ Day) +
   theme_bw(base_size = 16) +
@@ -139,14 +137,14 @@ SR.siteday.plot <- ggplot(data = SR.Window.60) +
 
 ggview(device = "jpeg", units = "in", dpi = 1200, width = 6, height = 12)
 
-ggsave("Figures/Fig3A-SR.jpg", dpi = 1200, width = 6, height = 12)
+ggsave("Figures/Fig4A-SR.jpg", dpi = 1200, width = 6, height = 12)
 
 # smoothing predictions by day
-SR.day.plot <- ggplot(data = SR.Window.60) +
+ggplot(data = SR.Window.60) +
   #geom_point(mapping = aes(x = Minute, y = SR, color = Site)) +
-  geom_line(mapping = aes(x = Minute, y = fit, color = Site)) +
+  geom_line(mapping = aes(x = Minute, y = fit, color = Site), size = 0.7) +
   geom_smooth(mapping = aes(x = Minute, y = fit.day + se.fit.day), se = FALSE, color = "black", linetype = 2) +
-  geom_smooth(mapping = aes(x = Minute, y = fit.day), color = "black", size = 1.1, se = FALSE) +
+  geom_smooth(mapping = aes(x = Minute, y = fit.day), se = FALSE, color = "black", linewidth = 1.1) +
   geom_smooth(mapping = aes(x = Minute, y = fit.day - se.fit.day), se = FALSE, color = "black", linetype = 2) +
   facet_grid(~ Day) +
   theme_bw(base_size = 16) +
@@ -166,7 +164,7 @@ SR.day.plot <- ggplot(data = SR.Window.60) +
 
 ggview(device = "jpeg", units = "in", dpi = 1200, width = 12, height = 4)
 
-ggsave("Figures/Fig3B-SR.jpg", dpi = 1200, width = 12, height = 4)
+ggsave("Figures/Fig4B-SR.jpg", dpi = 1200, width = 12, height = 4)
 
 
 # TOTAL VOCAL PREVALENCE --------------------------------------------------------
@@ -191,7 +189,7 @@ ggplot(data = TVP.Window.60) +
 
 # TOTAL VOCAL PREVALENCE MODEL -------------------------------------------------
 
-TVPgam.60 <- mgcv::gamm(TVP ~ s(Minute, by = SiteDay) + s(Site, bs = "re") + s(Day, bs = "re"),
+TVPgam.60 <- mgcv::gamm(TVP ~ s(Minute, by = SiteDay) + s(Site, by = Day, bs = "re"),
                         family = "poisson",
                         method = "REML",
                         data = TVP.Window.60)
@@ -205,11 +203,11 @@ pacf(resid(TVPgam.60$lme, type = "normalized"))
 
 # adding in first order autoregressive covariance structure (AR1) to account for
 # residual autocorrelation
-TVPgam.60.ar1 <- mgcv::gamm(TVP ~ s(Minute, by = SiteDay) + s(Day, bs = "re") + s(Site, bs = "re"),
-                        correlation = corAR1(form = ~ Minute | SiteDay),
-                        family = "poisson",
-                        method = "REML",
-                        data = TVP.Window.60)
+TVPgam.60.ar1 <- mgcv::gamm(TVP ~ s(Minute, by = SiteDay) + s(Site, by = Day, bs = "re"),
+                            correlation = corAR1(form = ~ Minute | Site + Day),
+                            family = "poisson",
+                            method = "REML",
+                            data = TVP.Window.60)
 
 # checking for autocorrelation issues
 performance::check_singularity(TVPgam.60.ar1$gam)
@@ -226,14 +224,14 @@ summary(TVPgam.60.ar1$gam)
 anova.gam(TVPgam.60.ar1$gam)
 # visualizing partial effects
 plot(TVPgam.60.ar1$gam, shade = TRUE, shift = coef(TVPgam.60.ar1$gam)[1],
-     trans = exp, pages = 1, all.terms = TRUE, rug = FALSE)
+     trans = exp, pages = 2, all.terms = TRUE, rug = FALSE)
 
 # creating a second model to smooth minute by day effects
-TVPgam.60.ar1.day <- mgcv::gamm(TVP ~ s(Minute, by = Day) + s(Site, bs = "re") + s(Day, bs = "re"),
-                               correlation = corAR1(form = ~ Minute | SiteDay),
-                               family = "poisson",
-                               method = "REML",
-                               data = TVP.Window.60)
+TVPgam.60.ar1.day <- mgcv::gamm(TVP ~ s(Minute, by = Day) + s(Site, by = Day, bs = "re"),
+                                correlation = corAR1(form = ~ Minute | Site + Day),
+                                family = "poisson",
+                                method = "REML",
+                                data = TVP.Window.60)
 summary(TVPgam.60.ar1.day$gam)
 anova.gam(TVPgam.60.ar1.day$gam)
 # visualizing partial effects
@@ -283,14 +281,14 @@ ggplot(data = TVP.Window.60) +
 
 ggview(device = "jpeg", units = "in", dpi = 1200, width = 6, height = 12)
 
-ggsave("Figures/Fig3A-TVP.jpg", dpi = 1200, width = 6, height = 12)
+ggsave("Figures/Fig4A-TVP.jpg", dpi = 1200, width = 6, height = 12)
 
 # smoothing predictions by day
 ggplot(data = TVP.Window.60) +
   #geom_point(mapping = aes(x = Minute, y = TVP, color = Site)) +
-  geom_line(mapping = aes(x = Minute, y = fit, color = Site)) +
+  geom_line(mapping = aes(x = Minute, y = fit, color = Site), size = 0.7) +
   geom_smooth(mapping = aes(x = Minute, y = fit.day + se.fit.day), se = FALSE, color = "black", linetype = 2) +
-  geom_smooth(mapping = aes(x = Minute, y = fit.day), color = "black", se = FALSE, size = 1.1) +
+  geom_smooth(mapping = aes(x = Minute, y = fit.day), se = FALSE, color = "black", size = 1.1) +
   geom_smooth(mapping = aes(x = Minute, y = fit.day - se.fit.day), se = FALSE, color = "black", linetype = 2) +
   facet_grid(~ Day) +
   theme_bw(base_size = 16) +
@@ -310,7 +308,7 @@ ggplot(data = TVP.Window.60) +
 
 ggview(device = "jpeg", units = "in", dpi = 1200, width = 12, height = 4)
 
-ggsave("Figures/Fig3B-TVP.jpg", dpi = 1200, width = 12, height = 4)
+ggsave("Figures/Fig4B-TVP.jpg", dpi = 1200, width = 12, height = 4)
 
 
 
@@ -348,11 +346,11 @@ VP.Window.60.HATH <- VP.Window.60 %>%
 gghistogram(VP.Window.60.HATH$VP, xlab = "VP")
 ggqqplot(VP.Window.60.HATH$VP, ylab = "VP")
 
-VPgam.60.ar1.HATH <- mgcv::gamm(VP ~ s(Minute) + s(Day, bs = "re") + s(Site, bs = "re"),
-                            correlation = corAR1(form = ~ Minute | SiteDay),
-                            family = "poisson",
-                            method = "REML",
-                            data = VP.Window.60.HATH)
+VPgam.60.ar1.HATH <- mgcv::gamm(VP ~ s(Minute) + s(Site, by = Day, bs = "re"),
+                                correlation = corAR1(form = ~ Minute | Site + Day),
+                                family = "poisson",
+                                method = "REML",
+                                data = VP.Window.60.HATH)
 
 # checking for autocorrelation issues
 performance::check_singularity(VPgam.60.ar1.HATH$gam)
@@ -379,8 +377,8 @@ VP.Window.60.BFAT <- VP.Window.60 %>%
 gghistogram(VP.Window.60.BFAT$VP, xlab = "VP")
 ggqqplot(VP.Window.60.BFAT$VP, ylab = "VP")
 
-VPgam.60.ar1.BFAT <- mgcv::gamm(VP ~ s(Minute) + s(Day, bs = "re") + s(Site, bs = "re"),
-                                correlation = corAR1(form = ~ Minute | SiteDay),
+VPgam.60.ar1.BFAT <- mgcv::gamm(VP ~ s(Minute) + s(Site, by = Day, bs = "re"),
+                                correlation = corAR1(form = ~ Minute | Site + Day),
                                 family = "poisson",
                                 method = "REML",
                                 data = VP.Window.60.BFAT)
@@ -410,8 +408,8 @@ VP.Window.60.TLWR <- VP.Window.60 %>%
 gghistogram(VP.Window.60.TLWR$VP, xlab = "VP")
 ggqqplot(VP.Window.60.TLWR$VP, ylab = "VP")
 
-VPgam.60.ar1.TLWR <- mgcv::gamm(VP ~ s(Minute) + s(Day, bs = "re") + s(Site, bs = "re"),
-                                correlation = corAR1(form = ~ Minute | SiteDay),
+VPgam.60.ar1.TLWR <- mgcv::gamm(VP ~ s(Minute) + s(Site, by = Day, bs = "re"),
+                                correlation = corAR1(form = ~ Minute | Site + Day),
                                 family = "poisson",
                                 method = "REML",
                                 data = VP.Window.60.TLWR)
@@ -441,8 +439,8 @@ VP.Window.60.PIFL <- VP.Window.60 %>%
 gghistogram(VP.Window.60.PIFL$VP, xlab = "VP")
 ggqqplot(VP.Window.60.PIFL$VP, ylab = "VP")
 
-VPgam.60.ar1.PIFL <- mgcv::gamm(VP ~ s(Minute) + s(Day, bs = "re") + s(Site, bs = "re"),
-                                correlation = corAR1(form = ~ Minute | SiteDay),
+VPgam.60.ar1.PIFL <- mgcv::gamm(VP ~ s(Minute) + s(Site, by = Day, bs = "re"),
+                                correlation = corAR1(form = ~ Minute | Site + Day),
                                 family = "poisson",
                                 method = "REML",
                                 data = VP.Window.60.PIFL)
@@ -472,8 +470,8 @@ VP.Window.60.BTWO <- VP.Window.60 %>%
 gghistogram(VP.Window.60.BTWO$VP, xlab = "VP")
 ggqqplot(VP.Window.60.BTWO$VP, ylab = "VP")
 
-VPgam.60.ar1.BTWO <- mgcv::gamm(VP ~ s(Minute) + s(Day, bs = "re") + s(Site, bs = "re"),
-                                correlation = corAR1(form = ~ Minute | SiteDay),
+VPgam.60.ar1.BTWO <- mgcv::gamm(VP ~ s(Minute) + s(Site, by = Day, bs = "re"),
+                                correlation = corAR1(form = ~ Minute | Site + Day),
                                 family = "poisson",
                                 method = "REML",
                                 data = VP.Window.60.BTWO)
@@ -503,7 +501,7 @@ VP.Window.60.AMMO <- VP.Window.60 %>%
 gghistogram(VP.Window.60.AMMO$VP, xlab = "VP")
 ggqqplot(VP.Window.60.AMMO$VP, ylab = "VP")
 
-VPgam.60.ar1.AMMO <- mgcv::gamm(VP ~ s(Minute) + s(Day, bs = "re") + s(Site, bs = "re"),
+VPgam.60.ar1.AMMO <- mgcv::gamm(VP ~ s(Minute) + s(Site, by = Day, bs = "re"),
                                 correlation = corAR1(form = ~ Minute | SiteDay),
                                 family = "poisson",
                                 method = "REML",
@@ -534,8 +532,8 @@ VP.Window.60.BBWR <- VP.Window.60 %>%
 gghistogram(VP.Window.60.BBWR$VP, xlab = "VP")
 ggqqplot(VP.Window.60.BBWR$VP, ylab = "VP")
 
-VPgam.60.ar1.BBWR <- mgcv::gamm(VP ~ s(Minute) + s(Day, bs = "re") + s(Site, bs = "re"),
-                                correlation = corAR1(form = ~ Minute | SiteDay),
+VPgam.60.ar1.BBWR <- mgcv::gamm(VP ~ s(Minute) + s(Site, by = Day, bs = "re"),
+                                correlation = corAR1(form = ~ Minute | Site + Day),
                                 family = "poisson",
                                 method = "REML",
                                 data = VP.Window.60.BBWR)
@@ -554,7 +552,7 @@ concurvity(VPgam.60.ar1.BBWR$gam, full = FALSE) # no issues with concurvity
 summary(VPgam.60.ar1.BBWR$gam)
 anova.gam(VPgam.60.ar1.BBWR$gam)
 # visualizing partial effects
-plot(VPgam.60.ar1.BBWR$gam, shade = TRUE, shift = coef(VPgam.60.ar1.BBWR$gam)[1],
+plot(VPgam.60.ar1.BBWR$gam, shade = TRUE, shift = coef(VPgam.60.ar1.GRAB$gam)[1],
      trans = exp, pages = 1, all.terms = TRUE, rug = FALSE)
 
 
@@ -565,8 +563,8 @@ VP.Window.60.AMBW <- VP.Window.60 %>%
 gghistogram(VP.Window.60.AMBW$VP, xlab = "VP")
 ggqqplot(VP.Window.60.AMBW$VP, ylab = "VP")
 
-VPgam.60.ar1.AMBW <- mgcv::gamm(VP ~ s(Minute) + s(Day, bs = "re") + s(Site, bs = "re"),
-                                correlation = corAR1(form = ~ Minute | SiteDay),
+VPgam.60.ar1.AMBW <- mgcv::gamm(VP ~ s(Minute) + s(Site, by = Day, bs = "re"),
+                                correlation = corAR1(form = ~ Minute | Site + Day),
                                 family = "poisson",
                                 method = "REML",
                                 data = VP.Window.60.AMBW)
@@ -651,5 +649,5 @@ ggplot(data = predicted.VP.spp) +
 
 ggview(device = "jpeg", units = "in", dpi = 1200, width = 10, height = 7.5)
 
-ggsave("Figures/Fig5-VP.png", dpi = 1200, width = 10, height = 7.5)
+ggsave("Figures/Fig5-VP.jpg", dpi = 1200, width = 10, height = 7.5)
 
