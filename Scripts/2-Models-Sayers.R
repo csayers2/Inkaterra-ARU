@@ -27,7 +27,7 @@ SR.Window.60 <- read.csv("Outputs/SR.Window.60") %>%
 ggdensity(SR.Window.60$SR, xlab = "Species Richness")
 gghistogram(SR.Window.60$SR, xlab = "Species Richness")
 ggqqplot(SR.Window.60$SR, ylab = "Species Richness")
-shapiro.test(SR.Window.60$SR) # W = 0.97625, p-value = 2.638e-12, not normal
+shapiro.test(SR.Window.60$SR) # W = 0.97624, p-value = 2.638e-12, not normal
 
 ggplot(data = SR.Window.60) +
   geom_point(mapping = aes(x = Minute, y = SR, color = Day)) +
@@ -101,7 +101,7 @@ plot(SRgam.60.ar1.day$gam, shade = TRUE, shift = coef(SRgam.60.ar1$gam)[1],
 predicted.sr <- data.frame(predict(SRgam.60.ar1$gam, type = "response", se.fit = TRUE))
 predicted.sr.day <- data.frame(predict(SRgam.60.ar1.day$gam, type = "response", se.fit = TRUE)) %>% 
   rename(fit.day = fit, se.fit.day = se.fit)
-SR.Window.60 <- cbind(SR.Window.60, predicted.sr, predicted.sr.day) %>% 
+SR.Window.60 <- data.frame(cbind(SR.Window.60, predicted.sr, predicted.sr.day)) %>% 
   # converting site and day names to meaningful numbers
   mutate(Day = if_else(Day == "A", "Day 1",
                        if_else(Day == "B", "Day 2", "Day 3")),
